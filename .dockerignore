@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.pyc
+
+# pip/Poetry
+*.egg-info/
+dist/
+build/
+poetry.lock  # по желанию, если генерится в CI
+
+# Виртуальное окружение
+venv/
+.venv/
+
+# IDE
+.idea/
+
+# Git
+.git/
+.gitignore
+
+# Кеши тестов
+.pytest_cache/
+.coverage
+
+# Docker
+.dockerignore
+Dockerfile
+docker-compose.yml
+
+# Конфиги/секреты
+#.env
+
+# Локальные логи
+*.log
