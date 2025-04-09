@@ -39,7 +39,11 @@ APP_ENV=development
 ```
 
 ## ⚙️ Запуск
-
+- Клонируйте репозиторий на локальную машину
+```
+git clone https://github.com/ribondareva/Deduplicator
+```
+- Сделайте папку app as sources root
 - Установите Docker и Docker Compose
 - Соберите и запустите контейнеры:
 ```
