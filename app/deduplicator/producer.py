@@ -1,4 +1,3 @@
-import json
 from aiokafka import AIOKafkaProducer
 from api.schemas import EventSchema
 

@@ -1,11 +1,13 @@
 import json
 from aiokafka import AIOKafkaConsumer
 from app.api.schemas import EventSchema
+from app.config import settings
 from deduplicator.db import Database
 from deduplicator.bloom_filter import Deduplicator
 
-KAFKA_BOOTSTRAP_SERVERS = "kafka:9092"
-KAFKA_TOPIC = "events"
+
+KAFKA_BOOTSTRAP_SERVERS = settings.KAFKA_BOOTSTRAP_SERVERS
+KAFKA_TOPIC_NAME = settings.KAFKA_TOPIC_NAME
 
 db = Database()
 deduplicator = Deduplicator()
@@ -16,7 +18,7 @@ async def main():
     await db.init_db()
 
     consumer = AIOKafkaConsumer(
-        KAFKA_TOPIC,
+        KAFKA_TOPIC_NAME,
         bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
         value_deserializer=lambda m: json.loads(m.decode("utf-8")),
         enable_auto_commit=True,
