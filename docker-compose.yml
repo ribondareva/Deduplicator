@@ -1,12 +1,64 @@
-# RedisBloom и Kafka
-version: '3.8'
+version: "3.8"
 
 services:
+  zookeeper:
+    image: wurstmeister/zookeeper:latest
+    ports:
+      - "2181:2181"
+    networks:
+      - dedup_net
+
+  kafka:
+    image: wurstmeister/kafka:latest
+    ports:
+      - "9092:9092"
+    expose:
+      - "9093"
+    environment:
+      KAFKA_ADVERTISED_LISTENERS: INSIDE://kafka:9093,OUTSIDE://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT
+      KAFKA_LISTENERS: INSIDE://0.0.0.0:9093,OUTSIDE://0.0.0.0:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: INSIDE
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_CREATE_TOPICS: "events:1:1"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - dedup_net
+
+
   redis:
     image: redis/redis-stack:latest
     ports:
       - "6379:6379"
     container_name: redis
+    networks:
+      - dedup_net
+
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: events
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - dedup_net
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
     networks:
       - dedup_net
 
@@ -16,13 +68,39 @@ services:
     ports:
       - "8000:8000"
     depends_on:
+      - kafka
       - redis
+      - postgres
     env_file:
       - app/.env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+    volumes:
+      - .:/app
     networks:
       - dedup_net
+    command: bash -c "./wait_for_kafka.sh && poetry run uvicorn app.main:main_app --host 0.0.0.0 --port 8000"
+
+  consumer:
+    build: .
+    container_name: deduplicator_consumer
+    depends_on:
+      - kafka
+      - redis
+      - postgres
+    env_file:
+      - app/.env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+    networks:
+      - dedup_net
+    command: poetry run python -m app.deduplicator.consumer
+
+volumes:
+  pg_data:
 
 networks:
   dedup_net:
     driver: bridge
-
