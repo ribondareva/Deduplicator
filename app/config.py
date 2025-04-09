@@ -1,21 +1,25 @@
 # настройки (Redis, Kafka)
-import os
-
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    # kafka_bootstrap_servers: str
-    # kafka_topic_name: str
+    REDIS_HOST: str
+    REDIS_PORT: int
+    REDIS_BLOOM_KEY: str
 
-    REDIS_HOST: str = os.getenv("REDIS_HOST", "redis")
-    REDIS_PORT: int = int(os.getenv("REDIS_PORT", 6379))
-    REDIS_BLOOM_KEY: str = os.getenv("REDIS_BLOOM_KEY", "product-events-bloom")
+    DB_HOST: str
+    DB_PORT: int
+    DB_NAME: str
+    DB_USER: str
+    DB_PASSWORD: str
 
-    app_env: str = "development"
+    KAFKA_BOOTSTRAP_SERVERS: str
+    KAFKA_TOPIC_NAME: str
+
+    APP_ENV: str
 
     class Config:
-        env_file = ".env"
+        env_file = "app/.env"
 
 
 settings = Settings()
