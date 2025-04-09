@@ -1,4 +1,4 @@
-# 🧹 Deduplicator Microservice
+# 🧹 Микросервис Дедупликатор
 
 Микросервис для дедупликации продуктовых событий с использованием FastAPI, Kafka, RedisBloom и PostgreSQL.
 
@@ -36,6 +36,7 @@ KAFKA_BOOTSTRAP_SERVERS=kafka:9092
 KAFKA_TOPIC_NAME=events
 
 APP_ENV=development
+```
 
 ## ⚙️ Запуск
 
