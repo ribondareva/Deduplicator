@@ -15,19 +15,16 @@ WORKDIR /app
 
 # Копируем файлы с зависимостями
 COPY pyproject.toml poetry.lock /app/
-COPY wait_for_kafka.sh /app/
+COPY start-consumer.sh wait_for_kafka.sh /app/
 
 # Устанавливаем зависимости
-RUN poetry install --no-root --only main
+RUN poetry install --no-root
 
 # Копируем остальной проект
 COPY . .
 
 # Делаем стартовый скрипт исполняемым
-RUN chmod +x wait_for_kafka.sh
+RUN chmod +x  start-consumer.sh wait_for_kafka.sh
 
 # Открываем порт
 EXPOSE 8000
-
-# Запуск приложения
-CMD ["poetry", "run", "uvicorn", "app.main:main_app", "--host", "0.0.0.0", "--port", "8000"]

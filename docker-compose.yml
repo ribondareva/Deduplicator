@@ -15,12 +15,13 @@ services:
     expose:
       - "9093"
     environment:
-      KAFKA_ADVERTISED_LISTENERS: INSIDE://kafka:9093,OUTSIDE://kafka:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT
-      KAFKA_LISTENERS: INSIDE://0.0.0.0:9093,OUTSIDE://0.0.0.0:9092
-      KAFKA_INTER_BROKER_LISTENER_NAME: INSIDE
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_CREATE_TOPICS: "events:1:1"
+      KAFKA_ADVERTISED_HOST_NAME: kafka
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
@@ -39,15 +40,22 @@ services:
     image: postgres:15
     container_name: postgres
     environment:
-      POSTGRES_USER: user
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
       POSTGRES_DB: events
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
     ports:
       - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
     networks:
       - dedup_net
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d events" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
 
   pgadmin:
     image: dpage/pgadmin4
@@ -68,32 +76,50 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      - kafka
-      - redis
-      - postgres
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      redis:
+        condition: service_started
     env_file:
-      - app/.env
+      - .env
     environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/app
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+      - DB_NAME=events
     volumes:
       - .:/app
     networks:
       - dedup_net
-    command: bash -c "./wait_for_kafka.sh && poetry run uvicorn app.main:main_app --host 0.0.0.0 --port 8000"
+    command: bash -c "./start-consumer.sh & ./wait_for_kafka.sh && sleep 10 && poetry run uvicorn app.main:main_app --host 0.0.0.0 --port 8000"
 
   consumer:
     build: .
     container_name: deduplicator_consumer
     depends_on:
-      - kafka
-      - redis
-      - postgres
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      redis:
+        condition: service_started
     env_file:
-      - app/.env
+      - .env
     environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/app
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+      - DB_NAME=events
     networks:
       - dedup_net
     command: poetry run python -m app.deduplicator.consumer

@@ -29,7 +29,7 @@ REDIS_BLOOM_KEY=product-events-bloom
 DB_HOST=postgres
 DB_PORT=5432
 DB_NAME=events
-DB_USER=user
+DB_USER=postgres
 DB_PASSWORD=password
 
 KAFKA_BOOTSTRAP_SERVERS=kafka:9092

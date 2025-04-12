@@ -1,36 +1,43 @@
 #!/bin/bash
+set -e
 
-# Загрузка .env
-if [ -f app/.env ]; then
-  export $(grep -v '^#' .env | xargs)
+host="postgres"
+port="5432"
+user="postgres"
+password="password"
+db="events"
+
+echo "Ожидание PostgreSQL ($host:$port)..."
+
+# Ожидание доступности PostgreSQL
+until PGPASSWORD="$password" psql -h "$host" -p "$port" -U "$user" -d "$db" -c '\q' >/dev/null 2>&1; do
+  echo "PostgreSQL недоступен, ждем..."
+  sleep 2
+done
+
+echo "PostgreSQL доступен!"
+
+# Проверка наличия alembic.ini
+if [ -f "/app/alembic.ini" ]; then
+    echo "Применение миграций..."
+
+    # Дополнительная проверка порта базы
+    until nc -z -v -w30 "$host" "$port"; do
+        echo "Ожидание базы данных..."
+        sleep 1
+    done
+
+    # Запуск миграций
+    poetry run alembic -c /app/alembic.ini upgrade head
+    exit_code=$?
+
+    if [ $exit_code -eq 0 ]; then
+        echo "Миграции успешно применены!"
+    else
+        echo "Ошибка применения миграций!" >&2
+        exit $exit_code
+    fi
 else
-  echo ".env файл не найден"
-  exit 1
+    echo "Файл alembic.ini не найден!" >&2
+    exit 1
 fi
-
-# Функция для ожидания доступности сервиса
-wait_for_service() {
-  local host=$1
-  local port=$2
-  local retries=30
-  local interval=5
-  echo "Ожидание $host:$port..."
-
-  for i in $(seq 1 $retries); do
-    (echo > /dev/tcp/$host/$port) &> /dev/null && echo "$host:$port доступен!" && return 0
-    echo "Попытка $i/$retries: $host:$port не доступен, повтор через $interval секунд..."
-    sleep $interval
-  done
-
-  echo "Ошибка: $host:$port не доступен после $retries попыток."
-  exit 1
-}
-
-# Ожидаем все сервисы
-wait_for_service "${KAFKA_BOOTSTRAP_SERVERS%%:*}" "${KAFKA_BOOTSTRAP_SERVERS##*:}"
-wait_for_service "$REDIS_HOST" "$REDIS_PORT"
-wait_for_service "$DB_HOST" "$DB_PORT"
-
-# Запуск консюмера
-echo "Запуск консюмера дедупликатора..."
-poetry run python deduplicator/consumer.py
