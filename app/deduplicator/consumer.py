@@ -12,6 +12,16 @@ db = Database()
 deduplicator = Deduplicator()
 
 
+async def periodic_bloom_reinitialization(deduplicator, interval_minutes=60):
+    while True:
+        try:
+            await asyncio.sleep(interval_minutes * 60)
+            print("Bloom filter reinitialized due to time interval.")
+            await deduplicator.initialize_bloom_filter()
+        except Exception as e:
+            print(f"Error during periodic Bloom filter reinitialization: {e}")
+
+
 # Перед началом работы с Redis в консюмере
 async def init_redis_in_consumer():
     if deduplicator.redis is None:
@@ -21,6 +31,10 @@ async def init_redis_in_consumer():
 async def main():
     await init_redis_in_consumer()
     await db.init_db()
+
+    # Запуск задачи переинициализации Bloom фильтра каждый час
+    # noinspection PyAsyncCall
+    asyncio.create_task(periodic_bloom_reinitialization(deduplicator))
 
     consumer = AIOKafkaConsumer(
         KAFKA_TOPIC_NAME,
