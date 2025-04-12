@@ -1,5 +1,6 @@
 # настройки (Redis, Kafka)
 from dotenv import load_dotenv
+from hashlib import sha256
 from pydantic import PostgresDsn
 from pydantic_settings import BaseSettings
 
@@ -9,7 +10,6 @@ load_dotenv()
 class Settings(BaseSettings):
     REDIS_HOST: str
     REDIS_PORT: int
-    REDIS_BLOOM_KEY: str
 
     DB_HOST: str
     DB_PORT: int
@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     APP_ENV: str
 
     @property
+    def REDIS_BLOOM_KEY(self) -> str:
+        base = f"{self.APP_ENV}:{self.DB_NAME}:{self.KAFKA_TOPIC_NAME}"
+        hashed_key = sha256(base.encode()).hexdigest()
+        return f"bloom:{hashed_key}"
+
+    @property
     def SQLALCHEMY_ASYNC_DATABASE_URI(self) -> PostgresDsn:
         return PostgresDsn.build(
             scheme="postgresql+asyncpg",
@@ -33,7 +39,7 @@ class Settings(BaseSettings):
         )
 
     class Config:
-        env_file = "app/.env"
+        env_file = ".env"
 
 
 settings = Settings()

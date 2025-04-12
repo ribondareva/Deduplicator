@@ -6,7 +6,6 @@ import asyncpg
 from sqlalchemy import Column, String, DateTime
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.sql import sqltypes
 from app.api.schemas import EventSchema
 from config import settings
 
