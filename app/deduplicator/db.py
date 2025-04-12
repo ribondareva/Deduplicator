@@ -6,7 +6,7 @@ import asyncpg
 from sqlalchemy import Column, String, DateTime
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.ext.declarative import declarative_base
-
+from sqlalchemy.sql import sqltypes
 from app.api.schemas import EventSchema
 from config import settings
 
@@ -20,12 +20,12 @@ class ProductEventDB(Base):
     event_id = Column(String, index=True)
     event_type = Column(String)
     client_id = Column(String, index=True)
-    event_datetime = Column(DateTime, nullable=True)
-    inserted_dt = Column(DateTime, nullable=True)
+    event_datetime = Column(DateTime(timezone=True), nullable=True)
+    inserted_dt = Column(DateTime(timezone=True), nullable=True)
     sid = Column(String)
     r = Column(String)
     event_data = Column(JSONB)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
 
 
 class Database:
@@ -60,7 +60,7 @@ class Database:
             $1, $2, $3, $4, $5, $6, $7, $8, $9
         )
         """
-
+        print("Added to DB")
         await self.connection.execute(
             query,
             product_id,
@@ -70,12 +70,14 @@ class Database:
             event.inserted_dt,
             event.sid,
             event.r,
-            json.dumps(event_dict),
+            json.dumps(event_dict, default=str),
             datetime.utcnow(),
         )
 
     async def check_event_exists(self, item_id: str) -> bool:
         """Проверка, существует ли событие с данным product_id"""
+        print(f"Checking DB for event_id: {item_id}")
         query = "SELECT 1 FROM events WHERE event_id = $1 LIMIT 1"
         result = await self.connection.fetch(query, item_id)
+        print(bool(result))
         return bool(result)

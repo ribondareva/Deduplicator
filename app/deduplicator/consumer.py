@@ -5,7 +5,6 @@ from app.config import settings
 from deduplicator.db import Database
 from deduplicator.bloom_filter import Deduplicator
 
-
 KAFKA_BOOTSTRAP_SERVERS = settings.KAFKA_BOOTSTRAP_SERVERS
 KAFKA_TOPIC_NAME = settings.KAFKA_TOPIC_NAME
 
@@ -13,8 +12,14 @@ db = Database()
 deduplicator = Deduplicator()
 
 
+# Перед началом работы с Redis в консюмере
+async def init_redis_in_consumer():
+    if deduplicator.redis is None:
+        await deduplicator.init_redis()
+
+
 async def main():
-    await deduplicator.init_redis()
+    await init_redis_in_consumer()
     await db.init_db()
 
     consumer = AIOKafkaConsumer(
@@ -39,18 +44,18 @@ async def main():
                 print("Invalid event: no product_id")
                 continue
 
-            # Проверка уникальности через Bloom Filter
-            if not await deduplicator.is_unique(item_id):
-                print(f"Duplicate event (Bloom): {item_id}")
-                continue
-
-            await deduplicator.add_to_bloom(item_id)
-
+            # проверим наличие в базе данных
             if await db.check_event_exists(item_id):
                 print(f"Duplicate event in DB: {item_id}")
                 continue
 
+            # проверим наличие в RedisBloom
+            if not await deduplicator.is_unique(item_id):
+                print(f"Duplicate event (Bloom): {item_id}")
+                continue
+
             await db.insert_event(event)
+            await deduplicator.add_to_bloom(item_id)
             print(f"Saved unique event: {item_id}")
 
     finally:
@@ -60,4 +65,5 @@ async def main():
 
 if __name__ == "__main__":
     import asyncio
+
     asyncio.run(main())

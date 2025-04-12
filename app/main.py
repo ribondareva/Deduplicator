@@ -12,6 +12,7 @@ deduplicator = Deduplicator()
 
 @main_app.on_event("startup")
 async def startup():
+    # await deduplicator.init_redis()
     await init_kafka_producer()
 
 

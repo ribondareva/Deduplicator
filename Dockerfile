@@ -1,30 +1,35 @@
 FROM python:3.12-slim
 
-# Устанавливаем зависимости для сборки
-RUN apt-get update && \
-    apt-get install -y curl build-essential netcat-openbsd postgresql-client && \
-    apt-get clean
+# Устанавливаем зависимости ОС
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    build-essential \
+    netcat-openbsd \
+    postgresql-client \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
 
 # Устанавливаем Poetry
 ENV POETRY_VERSION=1.6.1
 RUN curl -sSL https://install.python-poetry.org | python3 -
 ENV PATH="/root/.local/bin:$PATH"
 
-# Устанавливаем рабочую директорию
+# Рабочая директория
 WORKDIR /app
 
-# Копируем файлы с зависимостями
-COPY pyproject.toml poetry.lock /app/
-COPY start-consumer.sh wait_for_kafka.sh /app/
+# Копируем зависимости
+COPY pyproject.toml poetry.lock ./
+COPY start-consumer.sh wait_for_kafka.sh ./
 
-# Устанавливаем зависимости
-RUN poetry install --no-root
+# Устанавливаем зависимости через Poetry
+RUN poetry config virtualenvs.create false \
+ && poetry install --no-root --no-interaction --no-ansi
 
-# Копируем остальной проект
+# Копируем всё остальное
 COPY . .
 
-# Делаем стартовый скрипт исполняемым
-RUN chmod +x  start-consumer.sh wait_for_kafka.sh
+# Даем права на выполнение
+RUN chmod +x start-consumer.sh wait_for_kafka.sh
 
 # Открываем порт
 EXPOSE 8000
