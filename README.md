@@ -25,7 +25,6 @@
 ```env
 REDIS_HOST=redis
 REDIS_PORT=6379
-REDIS_BLOOM_KEY=product-events-bloom
 
 DB_HOST=postgres
 DB_PORT=5432
