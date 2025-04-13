@@ -36,6 +36,54 @@ services:
     networks:
       - dedup_net
 
+  celery_worker:
+    build: .
+    container_name: celery_worker
+    command: celery -A app.celery_app worker --loglevel=info
+    depends_on:
+      - redis
+      - postgres
+    env_file:
+      - .env
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+      - DB_NAME=events
+    volumes:
+      - .:/app
+    networks:
+      - dedup_net
+    restart: always
+
+  celery_beat:
+    build: .
+    container_name: celery_beat
+    command: celery -A app.celery_app beat --loglevel=info
+    depends_on:
+      - redis
+      - postgres
+    env_file:
+      - .env
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+      - DB_NAME=events
+    volumes:
+      - .:/app
+    networks:
+      - dedup_net
+    restart: always
+
   postgres:
     image: postgres:15
     container_name: postgres
