@@ -23,21 +23,25 @@ def upgrade() -> None:
     """Upgrade schema."""
     op.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto;")
 
-    op.create_table('events',
-    sa.Column('id', UUID(as_uuid=True), primary_key=True, server_default=sa.text('gen_random_uuid()')),
-    sa.Column('event_id', sa.String(), nullable=True),
-    sa.Column('event_type', sa.String(), nullable=True),
-    sa.Column('client_id', sa.String(), nullable=True),
-    sa.Column('event_datetime', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('inserted_dt', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('sid', sa.String(), nullable=True),
-    sa.Column('r', sa.String(), nullable=True),
-    sa.Column('event_data', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
-    sa.PrimaryKeyConstraint('id')
+    op.create_table(
+        'events',
+        sa.Column('id', UUID(as_uuid=True), primary_key=True, server_default=sa.text('gen_random_uuid()')),
+        sa.Column('event_id', sa.String(), nullable=True),
+        sa.Column('event_type', sa.String(), nullable=True),
+        sa.Column('client_id', sa.String(), nullable=True),
+        sa.Column('event_datetime', sa.DateTime(timezone=True), nullable=True),
+        sa.Column('inserted_dt', sa.DateTime(timezone=True), nullable=True),
+        sa.Column('sid', sa.String(), nullable=True),
+        sa.Column('r', sa.String(), nullable=True),
+        sa.Column('event_data', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column('event_hash', sa.String(), nullable=False, unique=True),
+        sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
+        sa.PrimaryKeyConstraint('id')
     )
+
     op.create_index(op.f('ix_events_client_id'), 'events', ['client_id'], unique=False)
     op.create_index(op.f('ix_events_event_id'), 'events', ['event_id'], unique=False)
+    op.create_index(op.f('ix_events_event_hash'), 'events', ['event_hash'], unique=True)
     # ### end Alembic commands ###
 
 
@@ -45,5 +49,6 @@ def downgrade() -> None:
     """Downgrade schema."""
     op.drop_index(op.f('ix_events_event_id'), table_name='events')
     op.drop_index(op.f('ix_events_client_id'), table_name='events')
+    op.drop_index(op.f('ix_events_event_hash'), table_name='events')
     op.drop_table('events')
     # ### end Alembic commands ###
