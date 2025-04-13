@@ -5,9 +5,6 @@ from deduplicator.producer import send_event_to_kafka
 
 router = APIRouter()
 
-# deduplicator = Deduplicator()
-
-
 @router.get("/health")
 def health_check():
     return {"status": "ok"}
@@ -22,7 +19,6 @@ async def process_event(event: EventSchema, deduplicator: Deduplicator = Depends
     is_unique = await deduplicator.is_unique(item_id)
 
     if is_unique:
-        # await deduplicator.add_to_bloom(item_id)
         await send_event_to_kafka(event)
         return {"message": "Event is unique and sent to Kafka", "item_id": item_id}
     else:
