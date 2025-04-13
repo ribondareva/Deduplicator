@@ -2,7 +2,7 @@ import json
 from aiokafka import AIOKafkaConsumer
 from app.api.schemas import EventSchema
 from app.config import settings
-from deduplicator.db import Database
+from deduplicator.db import Database, get_event_hash
 from deduplicator.bloom_filter import Deduplicator
 
 KAFKA_BOOTSTRAP_SERVERS = settings.KAFKA_BOOTSTRAP_SERVERS
@@ -54,13 +54,14 @@ async def main():
                 continue
 
             item_id = event.product_id
+            event_hash = get_event_hash(event)
             if not item_id:
                 print("Invalid event: no product_id")
                 continue
 
             # проверим наличие в базе данных
-            if await db.check_event_exists(item_id):
-                print(f"Duplicate event in DB: {item_id}")
+            if await db.check_event_exists(event_hash):
+                print(f"Duplicate event in DB: {event_hash}")
                 continue
 
             # проверим наличие в RedisBloom
@@ -68,7 +69,7 @@ async def main():
                 print(f"Duplicate event (Bloom): {item_id}")
                 continue
 
-            await db.insert_event(event)
+            await db.insert_event(event, event_hash)
             await deduplicator.add_to_bloom(item_id)
             print(f"Saved unique event: {item_id}")
 

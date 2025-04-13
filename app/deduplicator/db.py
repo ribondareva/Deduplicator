@@ -1,6 +1,8 @@
+import hashlib
 import json
 import uuid
 from datetime import datetime
+from typing import Optional, Any
 
 import asyncpg
 from sqlalchemy import Column, String, DateTime
@@ -10,6 +12,20 @@ from app.api.schemas import EventSchema
 from config import settings
 
 Base = declarative_base()
+
+
+# Конвертер для datetime объектов
+def datetime_converter(o: Any) -> Any:
+    if isinstance(o, datetime):
+        return o.isoformat()  # Преобразуем datetime в ISO строку
+    raise TypeError(f"Object of type {o.__class__.__name__} is not JSON serializable")
+
+
+def get_event_hash(event: EventSchema) -> str:
+    event_dict = event.dict()
+    # Преобразуем datetime объекты в строки перед сериализацией
+    event_json = json.dumps(event_dict, sort_keys=True, default=datetime_converter)
+    return hashlib.md5(event_json.encode()).hexdigest()
 
 
 class ProductEventDB(Base):
@@ -24,59 +40,58 @@ class ProductEventDB(Base):
     sid = Column(String)
     r = Column(String)
     event_data = Column(JSONB)
+    event_hash = Column(String, index=True, unique=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
 
 
 class Database:
     def __init__(self):
-        self.connection: asyncpg.Connection | None = None
+        self.pool: Optional[asyncpg.Pool] = None
 
     async def init_db(self):
-        """Инициализация подключения к базе данных PostgreSQL"""
-        self.connection = await asyncpg.connect(
+        self.pool = await asyncpg.create_pool(
             user=settings.DB_USER,
             password=settings.DB_PASSWORD,
             database=settings.DB_NAME,
             host=settings.DB_HOST,
             port=settings.DB_PORT,
+            min_size=10,
+            max_size=50,
         )
 
     async def close_db(self):
-        """Закрытие подключения к базе данных"""
-        if self.connection:
-            await self.connection.close()
+        if self.pool:
+            await self.pool.close()
 
-    async def insert_event(self, event: EventSchema):
+    async def insert_event(self, event: EventSchema, event_hash: str) -> None:
         """Добавление уникального события в таблицу events"""
+        async with self.pool.acquire() as conn:
+            print("Added to DB")
+            await conn.execute(
+                """
+                INSERT INTO events (
+                    event_id, event_type, client_id, event_datetime, inserted_dt,
+                    sid, r, event_data, event_hash, created_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                """,
+                event.product_id,
+                event.event_name,
+                str(event.client_id) if event.client_id else None,
+                event.event_datetime,
+                event.inserted_dt,
+                event.sid,
+                event.r,
+                json.dumps(event.dict(), default=str),
+                event_hash,
+                datetime.utcnow(),
+            )
 
-        event_dict = event.dict()
-        product_id = event_dict.get("product_id")
-
-        query = """
-        INSERT INTO events (
-            event_id, event_type, client_id, event_datetime, inserted_dt, sid, r, event_data, created_at
-        ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9
-        )
-        """
-        print("Added to DB")
-        await self.connection.execute(
-            query,
-            product_id,
-            event.event_name,
-            str(event.client_id) if event.client_id else None,
-            event.event_datetime,
-            event.inserted_dt,
-            event.sid,
-            event.r,
-            json.dumps(event_dict, default=str),
-            datetime.utcnow(),
-        )
-
-    async def check_event_exists(self, item_id: str) -> bool:
-        """Проверка, существует ли событие с данным product_id"""
-        print(f"Checking DB for event_id: {item_id}")
-        query = "SELECT 1 FROM events WHERE event_id = $1 LIMIT 1"
-        result = await self.connection.fetch(query, item_id)
-        print(bool(result))
-        return bool(result)
+    async def check_event_exists(self, event_hash: str) -> bool:
+        """Проверка, существует ли событие с данным event_hash"""
+        print(f"Checking DB for event_hash: {event_hash}")
+        async with self.pool.acquire() as conn:
+            result = await conn.fetchrow(
+                "SELECT 1 FROM events WHERE event_hash = $1",
+                event_hash
+            )
+            return result is not None
