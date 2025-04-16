@@ -1,7 +1,17 @@
 #!/bin/bash
 
+# Ждём готовности всех Kafka брокеров
 echo "Waiting for Kafka brokers..."
-until nc -z kafka1 9093; do sleep 2; done
-until nc -z kafka2 9094; do sleep 2; done
-until nc -z kafka3 9095; do sleep 2; done
-echo "All Kafka brokers are ready!"
+until kafka-broker-api-versions.sh --bootstrap-server kafka1:9093 >/dev/null 2>&1; do
+  sleep 2
+done
+
+until kafka-broker-api-versions.sh --bootstrap-server kafka2:9094 >/dev/null 2>&1; do
+  sleep 2
+done
+
+until kafka-broker-api-versions.sh --bootstrap-server kafka3:9095 >/dev/null 2>&1; do
+  sleep 2
+done
+
+echo "Kafka brokers are ready!"

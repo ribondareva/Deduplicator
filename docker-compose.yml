@@ -17,7 +17,7 @@ services:
       timeout: 5s
       retries: 10
 
-  # Kafka brokers с правильными настройками
+    # Kafka brokers с правильными настройками
   kafka1:
     image: wurstmeister/kafka:2.13-2.8.1
     container_name: kafka1
@@ -107,7 +107,7 @@ services:
       until kafka-broker-api-versions.sh --bootstrap-server kafka1:9093 >/dev/null 2>&1; do sleep 2; done;
       until kafka-broker-api-versions.sh --bootstrap-server kafka2:9094 >/dev/null 2>&1; do sleep 2; done;
       until kafka-broker-api-versions.sh --bootstrap-server kafka3:9095 >/dev/null 2>&1; do sleep 2; done;
-      
+
       echo 'Creating topic events...';
       kafka-topics.sh --bootstrap-server kafka1:9093,kafka2:9094,kafka3:9095 \
         --create \
@@ -120,6 +120,7 @@ services:
       "
     networks:
       - dedup_net
+
 
   redis-node-0:
     image: redislabs/rebloom:latest
@@ -412,7 +413,8 @@ services:
       - dedup_net
       - redis-cluster
     restart: always
-    command: bash -c "./start-consumer.sh & sleep 5 && poetry run uvicorn app.main:main_app --host 0.0.0.0 --port 8000 --workers 4"
+    command: >
+      bash -c './wait_for_kafka.sh && ./start-consumer.sh & sleep 5 && poetry run uvicorn app.main:main_app --host 0.0.0.0 --port 8000 --workers 4'
 
   migrations:
     build: .
