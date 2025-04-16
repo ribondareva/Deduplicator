@@ -121,7 +121,6 @@ class Deduplicator:
 
             test_key = f"temp_bloom_check_{datetime.now().timestamp()}"
             try:
-                # Пытаемся выполнить команду BF.ADD (более надежная проверка)
                 await self.redis.execute_command(
                     "BF.ADD",
                     test_key,
@@ -135,7 +134,6 @@ class Deduplicator:
             except ResponseError as e:
                 if "unknown command" in str(e).lower():
                     return False
-                # Если другая ошибка - модуль есть, но что-то пошло не так
                 return True
 
         except Exception as e:
@@ -235,7 +233,6 @@ class Deduplicator:
 
 
 async def get_deduplicator() -> Deduplicator:
-    """Фабрика для создания Deduplicator"""
     deduplicator = Deduplicator()
     await deduplicator.init_redis()
     return deduplicator
