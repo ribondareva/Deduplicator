@@ -6,6 +6,7 @@ from typing import Optional, Dict, Any, Union
 from redis.asyncio.cluster import RedisCluster
 from redis.asyncio import Redis
 from redis.exceptions import RedisError, ResponseError
+from redis.backoff import ExponentialBackoff
 from redis.retry import Retry
 
 from config import settings
@@ -22,6 +23,7 @@ class Deduplicator:
         self.current_bloom_key = settings.REDIS_BLOOM_KEY
         self.last_bloom_reset_time: Optional[datetime] = None
         self.bloom_initialized = False
+        self.bloom_supported = True  # Флаг поддержки Bloom фильтров
         self.cluster_nodes = settings.REDIS_CLUSTER_NODES
 
     async def _wait_for_cluster_ready(self, retries: int = 10, delay: int = 3) -> bool:
@@ -31,7 +33,6 @@ class Deduplicator:
 
         for attempt in range(1, retries + 1):
             try:
-                # Используем контекстный менеджер для автоматического закрытия соединения
                 async with Redis(
                         host=startup_node["host"],
                         port=startup_node["port"],
@@ -39,7 +40,6 @@ class Deduplicator:
                         socket_timeout=5,
                         socket_connect_timeout=5
                 ) as temp_client:
-
                     cluster_info = await temp_client.execute_command("CLUSTER INFO")
                     if isinstance(cluster_info, str):
                         info_dict = dict(line.strip().split(":")
@@ -66,33 +66,37 @@ class Deduplicator:
         return False
 
     async def init_redis(self) -> None:
-        """Инициализация с явными типами параметров"""
+        """Инициализация подключения к Redis Cluster"""
         if self.redis is not None:
             return
 
         try:
             logger.info("Initializing Redis Cluster connection...")
 
-            # Явно указываем тип параметров для RedisCluster
+            # Конфигурация для Redis Cluster
             cluster_params: Dict[str, Any] = {
                 "host": self.cluster_nodes[0]["host"],
                 "port": self.cluster_nodes[0]["port"],
                 "decode_responses": True,
                 "socket_timeout": 10,
                 "socket_connect_timeout": 10,
-                "read_from_replicas": True
+                "read_from_replicas": True,
+                "retry": Retry(ExponentialBackoff(), 3)
             }
 
             self.redis = RedisCluster(**cluster_params)
 
-            if not await self._check_bloom_module():
-                raise RedisError("RedisBloom module not available")
+            self.bloom_supported = await self._check_bloom_module()
+            if not self.bloom_supported:
+                logger.warning("RedisBloom module not available, falling back to basic SET operations")
 
             if not await self._check_connection():
                 raise RedisError("Connection test failed")
 
-            await self.initialize_bloom_filter()
-            logger.info("Redis Cluster initialized successfully")
+            if self.bloom_supported:
+                await self.initialize_bloom_filter()
+
+            logger.info(f"Redis Cluster initialized successfully. Bloom support: {self.bloom_supported}")
 
         except RedisError as e:
             logger.error(f"Redis initialization failed: {e}")
@@ -110,51 +114,29 @@ class Deduplicator:
             return False
 
     async def _check_bloom_module(self) -> bool:
-        """Проверка наличия модуля RedisBloom с правильной типизацией"""
+        """Проверка наличия модуля RedisBloom с правильными командами"""
         try:
-            if self.redis is None or not isinstance(self.redis, RedisCluster):
+            if self.redis is None:
                 return False
 
-            primary_nodes = self.redis.get_primaries()
-            if not primary_nodes:
-                return False
-
-            node = primary_nodes[0]
-
-            # Проверка через MODULE LIST
-            try:
-                modules = await self.redis.execute_command(
-                    "MODULE LIST",
-                    target_nodes=node
-                )
-                if any(module.get("name") == "bf" for module in modules):
-                    return True
-            except ResponseError:
-                pass
-
-            # Прямая проверка через команду BF
             test_key = f"temp_bloom_check_{datetime.now().timestamp()}"
             try:
-                # Создаем и сразу удаляем тестовый Bloom фильтр
+                # Пытаемся выполнить команду BF.ADD (более надежная проверка)
                 await self.redis.execute_command(
                     "BF.ADD",
                     test_key,
-                    "test_value",
-                    target_nodes=node
+                    "test_value"
                 )
 
-                # Явное удаление с указанием узла
-                await self.redis.execute_command(
-                    "DEL",
-                    test_key,
-                    target_nodes=node
-                )
+                # Очищаем тестовые данные
+                await self.redis.execute_command("DEL", test_key)
                 return True
 
             except ResponseError as e:
                 if "unknown command" in str(e).lower():
                     return False
-                raise
+                # Если другая ошибка - модуль есть, но что-то пошло не так
+                return True
 
         except Exception as e:
             logger.error(f"Bloom module check failed: {e}")
@@ -162,6 +144,9 @@ class Deduplicator:
 
     async def initialize_bloom_filter(self) -> None:
         """Инициализация Bloom-фильтра"""
+        if not self.bloom_supported:
+            return
+
         now = datetime.now()
         if self.last_bloom_reset_time and (now - self.last_bloom_reset_time) < timedelta(hours=1):
             logger.debug("Skipping Bloom filter reinitialization")
@@ -185,48 +170,54 @@ class Deduplicator:
             if "item exists" not in str(e):
                 raise
             logger.debug("Bloom filter already exists")
+            self.bloom_initialized = True
         except Exception as e:
             logger.error(f"Bloom filter init failed: {e}")
+            self.bloom_supported = False
             raise
 
     async def is_unique(self, item_id: str) -> bool:
         """Проверка уникальности элемента"""
-        if not self.redis or not self.bloom_initialized:
+        if not self.redis:
             raise RuntimeError("Redis not initialized")
 
         try:
             ttl_key = f"bloom_ttl:{item_id}"
-            # Проверка временного ключа
-            if await self.redis.exists(ttl_key):  # type: ignore
+            if await self.redis.exists(ttl_key):
                 return False
 
-            # Проверка Bloom-фильтра
-            return not await self.redis.execute_command(  # type: ignore
-                "BF.EXISTS",
-                self.current_bloom_key,
-                item_id
-            )
+            if self.bloom_supported and self.bloom_initialized:
+                return not await self.redis.execute_command(
+                    "BF.EXISTS",
+                    self.current_bloom_key,
+                    item_id
+                )
+            return not await self.redis.exists(f"dedup:{item_id}")
+
         except Exception as e:
             logger.error(f"Uniqueness check failed: {e}")
             raise RuntimeError(f"Uniqueness check failed: {e}")
 
     async def add_to_bloom(self, item_id: str, ttl_seconds: int = 3600) -> None:
         """Добавление элемента в Bloom-фильтр"""
-        if not self.redis or not self.bloom_initialized:
+        if not self.redis:
             raise RuntimeError("Redis not initialized")
 
         try:
-            # Добавление в фильтр
-            await self.redis.execute_command(  # type: ignore
-                "BF.ADD",
-                self.current_bloom_key,
-                item_id
-            )
-
-            # Установка TTL
             ttl_key = f"bloom_ttl:{item_id}"
-            if not await self.redis.exists(ttl_key):  # type: ignore
-                await self.redis.setex(ttl_key, ttl_seconds, 1)  # type: ignore
+
+            if self.bloom_supported and self.bloom_initialized:
+                await self.redis.execute_command(
+                    "BF.ADD",
+                    self.current_bloom_key,
+                    item_id
+                )
+            else:
+                await self.redis.setex(f"dedup:{item_id}", ttl_seconds, 1)
+
+            if not await self.redis.exists(ttl_key):
+                await self.redis.setex(ttl_key, ttl_seconds, 1)
+
         except Exception as e:
             logger.error(f"Failed to add to Bloom: {e}")
             raise RuntimeError(f"Failed to add to Bloom: {e}")
