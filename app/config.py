@@ -1,4 +1,4 @@
-# настройки (Redis, Kafka)
+# настройки
 from dotenv import load_dotenv
 from hashlib import sha256
 from pydantic import PostgresDsn
@@ -8,8 +8,8 @@ load_dotenv()
 
 
 class Settings(BaseSettings):
-    REDIS_HOST: str
-    REDIS_PORT: int
+    REDIS_NODES: str  # Строка вида "host1:port1,host2:port2,..."
+    REDIS_URL: str  # Для Celery
 
     DB_HOST: str
     DB_PORT: int
@@ -21,6 +21,21 @@ class Settings(BaseSettings):
     KAFKA_TOPIC_NAME: str
 
     APP_ENV: str
+
+    @property
+    def REDIS_CLUSTER_NODES(self) -> list[dict]:
+        if self.APP_ENV == "local":
+            # Используем внешний IP и порты, если работаем снаружи Docker
+            return [
+                {"host": "localhost", "port": port}
+                for port in [6380, 6381, 6382, 6383, 6384, 6385]
+            ]
+        # По умолчанию — используем docker-сервисные имена
+        return [
+            {"host": host, "port": int(port)}
+            for host_port in self.REDIS_NODES.split(",")
+            for host, port in [host_port.split(":")]
+        ]
 
     @property
     def REDIS_BLOOM_KEY(self) -> str:

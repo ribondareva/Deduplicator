@@ -1,13 +1,7 @@
 #!/bin/bash
 
-host="kafka"
-port="9092"
-
-echo "Ожидание Kafka ($host:$port)..."
-
-until nc -z -v -w30 "$host" "$port"; do
-  echo "Kafka не доступна, повтор через 5 секунд..."
-  sleep 5
-done
-
-echo "Kafka доступна!"
+echo "Waiting for Kafka brokers..."
+until nc -z kafka1 9093; do sleep 2; done
+until nc -z kafka2 9094; do sleep 2; done
+until nc -z kafka3 9095; do sleep 2; done
+echo "All Kafka brokers are ready!"

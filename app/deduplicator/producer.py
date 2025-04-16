@@ -12,6 +12,12 @@ async def init_kafka_producer():
         bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
     )
     await producer.start()
+    try:
+        # проверка подключения
+        partitions = await producer.partitions_for(settings.KAFKA_TOPIC_NAME)
+        print(f"Partitions available: {partitions}")
+    except Exception as e:
+        print(f"Error checking Kafka connection: {e}")
 
 
 async def close_kafka_producer():

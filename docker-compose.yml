@@ -1,52 +1,293 @@
-version: "3.8"
-
 services:
+    # Zookeeper с надежными настройками
   zookeeper:
-    image: wurstmeister/zookeeper:latest
+    image: zookeeper:3.8
+    container_name: zookeeper
     ports:
       - "2181:2181"
-    networks:
-      - dedup_net
-
-  kafka:
-    image: wurstmeister/kafka:latest
-    ports:
-      - "9092:9092"
-    expose:
-      - "9093"
     environment:
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_CREATE_TOPICS: "events:1:1"
-      KAFKA_ADVERTISED_HOST_NAME: kafka
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      ZOO_4LW_COMMANDS_WHITELIST: "*"
+      ZOO_STANDALONE_ENABLED: "true"
+      ZOO_MAX_CLIENT_CNXNS: 0  # Без лимита подключений
+    networks:
+      - dedup_net
+    healthcheck:
+      test: [ "CMD-SHELL", "zkServer.sh status" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Kafka brokers с правильными настройками
+  kafka1:
+    image: wurstmeister/kafka:2.13-2.8.1
+    container_name: kafka1
+    ports:
+      - "9093:9093"
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka1:9093"
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9093"
+      KAFKA_BROKER_ID: 1
+      AUTO_CREATE_TOPICS_ENABLE: false
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    networks:
+      - dedup_net
+    healthcheck:
+      test: [ "CMD-SHELL", "kafka-broker-api-versions.sh --bootstrap-server kafka1:9093" ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  kafka2:
+    image: wurstmeister/kafka:2.13-2.8.1
+    container_name: kafka2
+    ports:
+      - "9094:9094"
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka2:9094"
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9094"
+      KAFKA_BROKER_ID: 2
+      AUTO_CREATE_TOPICS_ENABLE: false
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    networks:
+      - dedup_net
+    healthcheck:
+      test: [ "CMD-SHELL", "kafka-broker-api-versions.sh --bootstrap-server kafka2:9094" ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  kafka3:
+    image: wurstmeister/kafka:2.13-2.8.1
+    container_name: kafka3
+    ports:
+      - "9095:9095"
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka3:9095"
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9095"
+      KAFKA_BROKER_ID: 3
+      AUTO_CREATE_TOPICS_ENABLE: false
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    networks:
+      - dedup_net
+    healthcheck:
+      test: [ "CMD-SHELL", "kafka-broker-api-versions.sh --bootstrap-server kafka3:9095" ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+    # Инициализация Kafka (создание топиков)
+  kafka-init:
+    image: wurstmeister/kafka:2.13-2.8.1
+    depends_on:
+      kafka1:
+        condition: service_healthy
+      kafka2:
+        condition: service_healthy
+      kafka3:
+        condition: service_healthy
+    entrypoint: [ "/bin/bash", "-c" ]
+    command: |
+      bash -c "
+      echo 'Waiting for Kafka brokers...';
+      until kafka-broker-api-versions.sh --bootstrap-server kafka1:9093 >/dev/null 2>&1; do sleep 2; done;
+      until kafka-broker-api-versions.sh --bootstrap-server kafka2:9094 >/dev/null 2>&1; do sleep 2; done;
+      until kafka-broker-api-versions.sh --bootstrap-server kafka3:9095 >/dev/null 2>&1; do sleep 2; done;
+      
+      echo 'Creating topic events...';
+      kafka-topics.sh --bootstrap-server kafka1:9093,kafka2:9094,kafka3:9095 \
+        --create \
+        --if-not-exists \
+        --topic events \
+        --partitions 6 \
+        --replication-factor 3 \
+        --config min.insync.replicas=2
+      "
     networks:
       - dedup_net
 
+  redis-node-0:
+    image: redis:7.0
+    container_name: redis-node-0
+    command: [
+      "redis-server",
+      "--cluster-enabled", "yes",
+      "--cluster-announce-hostname", "redis-node-0",
+      "--cluster-config-file", "/data/nodes.conf",
+      "--cluster-node-timeout", "5000",
+      "--appendonly", "yes"
+    ]
+    volumes:
+      - ./data/redis-node-0:/data
+    networks:
+      - redis_net
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-h", "redis-node-0", "-p", "6379", "PING" ]
+      interval: 30s
+      retries: 3
+      start_period: 30s
+      timeout: 10s
 
-  redis:
-    image: redis/redis-stack:latest
+  redis-node-1:
+    image: redis:7.0
+    container_name: redis-node-1
+    command: [
+      "redis-server",
+      "--cluster-enabled", "yes",
+      "--cluster-announce-hostname", "redis-node-1",
+      "--cluster-config-file", "/data/nodes.conf",
+      "--cluster-node-timeout", "5000",
+      "--appendonly", "yes"
+    ]
+    volumes:
+      - ./data/redis-node-1:/data
+    networks:
+      - redis_net
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-h", "redis-node-1", "-p", "6379", "PING" ]
+      interval: 30s
+      retries: 3
+      start_period: 30s
+      timeout: 10s
+
+  redis-node-2:
+    image: redis:7.0
+    container_name: redis-node-2
+    command: [
+      "redis-server",
+      "--cluster-enabled", "yes",
+      "--cluster-announce-hostname", "redis-node-2",
+      "--cluster-config-file", "/data/nodes.conf",
+      "--cluster-node-timeout", "5000",
+      "--appendonly", "yes"
+    ]
+    volumes:
+      - ./data/redis-node-2:/data
+    networks:
+      - redis_net
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-h", "redis-node-2", "-p", "6379", "PING" ]
+      interval: 30s
+      retries: 3
+      start_period: 30s
+      timeout: 10s
+
+  redis-node-3:
+    image: redis:7.0
+    container_name: redis-node-3
+    command: [
+      "redis-server",
+      "--cluster-enabled", "yes",
+      "--cluster-announce-hostname", "redis-node-3",
+      "--cluster-config-file", "/data/nodes.conf",
+      "--cluster-node-timeout", "5000",
+      "--appendonly", "yes"
+    ]
+    volumes:
+      - ./data/redis-node-3:/data
+    networks:
+      - redis_net
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-h", "redis-node-3", "-p", "6379", "PING" ]
+      interval: 30s
+      retries: 3
+      start_period: 30s
+      timeout: 10s
+
+  redis-node-4:
+    image: redis:7.0
+    container_name: redis-node-4
+    command: [
+      "redis-server",
+      "--cluster-enabled", "yes",
+      "--cluster-announce-hostname", "redis-node-4",
+      "--cluster-config-file", "/data/nodes.conf",
+      "--cluster-node-timeout", "5000",
+      "--appendonly", "yes"
+    ]
+    volumes:
+      - ./data/redis-node-4:/data
+    networks:
+      - redis_net
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-h", "redis-node-4", "-p", "6379", "PING" ]
+      interval: 30s
+      retries: 3
+      start_period: 30s
+      timeout: 10s
+
+  redis-node-5:
+    image: redis:7.0
+    container_name: redis-node-5
+    command: [
+      "redis-server",
+      "--cluster-enabled", "yes",
+      "--cluster-announce-hostname", "redis-node-5",
+      "--cluster-config-file", "/data/nodes.conf",
+      "--cluster-node-timeout", "5000",
+      "--appendonly", "yes"
+    ]
+    volumes:
+      - ./data/redis-node-5:/data
+    networks:
+      - redis_net
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-h", "redis-node-5", "-p", "6379", "PING" ]
+      interval: 30s
+      retries: 3
+      start_period: 30s
+      timeout: 10s
+
+  cluster-init:
+    image: redis:7.0
+    container_name: init-cluster
+    command: [ "/bin/bash", "/scripts/init-cluster.sh" ]
+    depends_on:
+      - redis-node-0
+      - redis-node-1
+      - redis-node-2
+      - redis-node-3
+      - redis-node-4
+      - redis-node-5
+    networks:
+      - redis_net
+    volumes:
+      - ./init-cluster.sh:/scripts/init-cluster.sh
+
+  redis-standalone:
+    image: redislabs/rebloom:latest
+    container_name: redis_celery
     ports:
       - "6379:6379"
-    container_name: redis
     networks:
       - dedup_net
 
   celery_worker:
     build: .
     container_name: celery_worker
-    command: celery -A app.celery_app worker --loglevel=info
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=4
     depends_on:
-      - redis
+      - redis-standalone
       - postgres
     env_file:
       - .env
     environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_BOOTSTRAP_SERVERS=kafka1:9093,kafka2:9094,kafka3:9095
+      - REDIS_URL=redis://redis-standalone:6379/0
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/app
       - DB_HOST=postgres
@@ -65,12 +306,13 @@ services:
     container_name: celery_beat
     command: celery -A app.celery_app beat --loglevel=info
     depends_on:
-      - redis
+      - redis-standalone
       - postgres
     env_file:
       - .env
     environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_BOOTSTRAP_SERVERS=kafka1:9093,kafka2:9094,kafka3:9095
+      - REDIS_URL=redis://redis-standalone:6379/0
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/app
       - DB_HOST=postgres
@@ -124,43 +366,54 @@ services:
     ports:
       - "8000:8000"
     depends_on:
+      cluster-init:
+        condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
-      kafka:
-        condition: service_started
-      redis:
-        condition: service_started
     env_file:
       - .env
     environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - PYTHONUNBUFFERED=1
-      - PYTHONPATH=/app
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=password
-      - DB_NAME=events
+      - KAFKA_BOOTSTRAP_SERVERS=kafka1:9093,kafka2:9094,kafka3:9095
+      - REDIS_NODES=redis-node-0:6379,redis-node-1:6379,redis-node-2:6379,redis-node-3:6379,redis-node-4:6379,redis-node-5:6379
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=events
     volumes:
       - .:/app
     networks:
       - dedup_net
-    command: bash -c "./start-consumer.sh & ./wait_for_kafka.sh && sleep 10 && poetry run uvicorn app.main:main_app --host 0.0.0.0 --port 8000"
+      - redis_net
+    restart: always
+    command: bash -c "./start-consumer.sh & sleep 5 && poetry run uvicorn app.main:main_app --host 0.0.0.0 --port 8000 --workers 4"
 
-  consumer:
+  migrations:
     build: .
-    container_name: deduplicator_consumer
     depends_on:
       postgres:
         condition: service_healthy
-      kafka:
-        condition: service_started
-      redis:
-        condition: service_started
+    env_file:
+      - .env
+    command: bash -c "alembic upgrade head"
+    networks:
+      - dedup_net
+
+  consumer_1: &consumer_base
+    build: .
+    container_name: consumer_1
+    depends_on:
+      cluster-init:
+        condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
     env_file:
       - .env
     environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_BOOTSTRAP_SERVERS=kafka1:9093,kafka2:9094,kafka3:9095
+      - REDIS_NODES=redis-node-0:6379,redis-node-1:6379,redis-node-2:6379,redis-node-3:6379,redis-node-4:6379,redis-node-5:6379
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/app
       - DB_HOST=postgres
@@ -170,11 +423,31 @@ services:
       - DB_NAME=events
     networks:
       - dedup_net
-    command: poetry run python -m app.deduplicator.consumer
+      - redis_net
+    command: bash -c "sleep 30 && ./start-consumer.sh && poetry run python -m app.deduplicator.consumer"
+
+
+  consumer_2:
+    <<: *consumer_base
+    container_name: consumer_2
+
+  consumer_3:
+    <<: *consumer_base
+    container_name: consumer_3
 
 volumes:
   pg_data:
+  zookeeper_data:
+  redis-data-0:
+  redis-data-1:
+  redis-data-2:
+  redis-data-3:
+  redis-data-4:
+  redis-data-5:
 
 networks:
   dedup_net:
     driver: bridge
+  redis_net:
+    driver: bridge
+
