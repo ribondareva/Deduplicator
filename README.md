@@ -33,6 +33,7 @@
 ```env
 # Redis Cluster
 REDIS_NODES=redis-node-0:6379,redis-node-1:6379,redis-node-2:6379,redis-node-3:6379,redis-node-4:6379,redis-node-5:6379
+# Redis (для Celery)
 REDIS_URL=redis://redis-standalone:6379/0
 # PostgreSQL
 DB_HOST=postgres
