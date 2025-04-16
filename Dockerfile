@@ -19,7 +19,7 @@ WORKDIR /app
 
 # Копируем зависимости
 COPY pyproject.toml poetry.lock ./
-COPY start-consumer.sh init-cluster.sh ./
+COPY init-cluster.sh start-consumer.sh ./
 
 # Устанавливаем зависимости через Poetry
 RUN poetry config virtualenvs.create false \
@@ -29,7 +29,7 @@ RUN poetry config virtualenvs.create false \
 COPY . .
 
 # Даем права на выполнение
-RUN chmod +x start-consumer.sh init-cluster.sh
+RUN chmod +x init-cluster.sh start-consumer.sh
 
 # Открываем порт
 EXPOSE 8000

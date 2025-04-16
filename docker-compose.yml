@@ -116,160 +116,186 @@ services:
         --partitions 6 \
         --replication-factor 3 \
         --config min.insync.replicas=2
+      echo 'Topic creation finished';
       "
     networks:
       - dedup_net
 
   redis-node-0:
-    image: redis:7.0
+    image: redislabs/rebloom:latest
     container_name: redis-node-0
-    command: [
-      "redis-server",
-      "--cluster-enabled", "yes",
-      "--cluster-announce-hostname", "redis-node-0",
-      "--cluster-config-file", "/data/nodes.conf",
-      "--cluster-node-timeout", "5000",
-      "--appendonly", "yes"
-    ]
-    volumes:
-      - ./data/redis-node-0:/data
+#    hostname: redis-node-0
+    ports:
+      - "6380:6379"
+      - "16380:16379"
     networks:
-      - redis_net
+      - redis-cluster
+    volumes:
+      - redis-node-0-data:/data
+    command: [ "redis-server", "--port", "6379", "--cluster-enabled", "yes",
+               "--cluster-announce-ip", "redis-node-0",
+               "--cluster-config-file", "/data/nodes.conf",
+               "--cluster-node-timeout", "5000",
+               "--cluster-announce-port", "6379",
+               "--cluster-announce-bus-port", "16379",
+               "--appendonly", "yes",
+               "--loadmodule", "/usr/lib/redis/modules/redisbloom.so" ]
     healthcheck:
-      test: [ "CMD", "redis-cli", "-h", "redis-node-0", "-p", "6379", "PING" ]
-      interval: 30s
-      retries: 3
-      start_period: 30s
-      timeout: 10s
+      test: [ "CMD", "redis-cli", "-p", "6379", "MODULE", "LIST" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   redis-node-1:
-    image: redis:7.0
+    image: redislabs/rebloom:latest
     container_name: redis-node-1
-    command: [
-      "redis-server",
-      "--cluster-enabled", "yes",
-      "--cluster-announce-hostname", "redis-node-1",
-      "--cluster-config-file", "/data/nodes.conf",
-      "--cluster-node-timeout", "5000",
-      "--appendonly", "yes"
-    ]
-    volumes:
-      - ./data/redis-node-1:/data
+#    hostname: redis-node-1
+    ports:
+      - "6381:6379"
+      - "16381:16379"
     networks:
-      - redis_net
+      - redis-cluster
+    volumes:
+      - redis-node-1-data:/data
+    command: [ "redis-server", "--port", "6379", "--cluster-enabled", "yes",
+               "--cluster-announce-ip", "redis-node-1",
+               "--cluster-config-file", "/data/nodes.conf",
+               "--cluster-node-timeout", "5000",
+               "--cluster-announce-port", "6379",
+               "--cluster-announce-bus-port", "16379",
+               "--appendonly", "yes",
+               "--loadmodule", "/usr/lib/redis/modules/redisbloom.so" ]
     healthcheck:
-      test: [ "CMD", "redis-cli", "-h", "redis-node-1", "-p", "6379", "PING" ]
-      interval: 30s
-      retries: 3
-      start_period: 30s
-      timeout: 10s
+      test: [ "CMD", "redis-cli", "-p", "6379", "MODULE", "LIST" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   redis-node-2:
-    image: redis:7.0
+    image: redislabs/rebloom:latest
+#    hostname: redis-node-2
     container_name: redis-node-2
-    command: [
-      "redis-server",
-      "--cluster-enabled", "yes",
-      "--cluster-announce-hostname", "redis-node-2",
-      "--cluster-config-file", "/data/nodes.conf",
-      "--cluster-node-timeout", "5000",
-      "--appendonly", "yes"
-    ]
-    volumes:
-      - ./data/redis-node-2:/data
+    ports:
+      - "6382:6379"
+      - "16382:16379"
     networks:
-      - redis_net
+      - redis-cluster
+    volumes:
+      - redis-node-2-data:/data
+    command: [ "redis-server", "--port", "6379", "--cluster-enabled", "yes",
+               "--cluster-announce-ip", "redis-node-2",
+               "--cluster-config-file", "/data/nodes.conf",
+               "--cluster-node-timeout", "5000",
+               "--cluster-announce-port", "6379",
+               "--cluster-announce-bus-port", "16379",
+               "--appendonly", "yes",
+               "--loadmodule", "/usr/lib/redis/modules/redisbloom.so" ]
     healthcheck:
-      test: [ "CMD", "redis-cli", "-h", "redis-node-2", "-p", "6379", "PING" ]
-      interval: 30s
-      retries: 3
-      start_period: 30s
-      timeout: 10s
+      test: [ "CMD", "redis-cli", "-p", "6379", "MODULE", "LIST" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   redis-node-3:
-    image: redis:7.0
+    image: redislabs/rebloom:latest
+#    hostname: redis-node-3
     container_name: redis-node-3
-    command: [
-      "redis-server",
-      "--cluster-enabled", "yes",
-      "--cluster-announce-hostname", "redis-node-3",
-      "--cluster-config-file", "/data/nodes.conf",
-      "--cluster-node-timeout", "5000",
-      "--appendonly", "yes"
-    ]
-    volumes:
-      - ./data/redis-node-3:/data
+    ports:
+      - "6383:6379"
+      - "16383:16379"
     networks:
-      - redis_net
+      - redis-cluster
+    volumes:
+      - redis-node-3-data:/data
+    command: [ "redis-server", "--port", "6379", "--cluster-enabled", "yes",
+               "--cluster-announce-ip", "redis-node-3",
+               "--cluster-config-file", "/data/nodes.conf",
+               "--cluster-node-timeout", "5000",
+               "--cluster-announce-port", "6379",
+               "--cluster-announce-bus-port", "16379",
+               "--appendonly", "yes",
+               "--loadmodule", "/usr/lib/redis/modules/redisbloom.so" ]
     healthcheck:
-      test: [ "CMD", "redis-cli", "-h", "redis-node-3", "-p", "6379", "PING" ]
-      interval: 30s
-      retries: 3
-      start_period: 30s
-      timeout: 10s
+      test: [ "CMD", "redis-cli", "-p", "6379", "MODULE", "LIST" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   redis-node-4:
-    image: redis:7.0
+    image: redislabs/rebloom:latest
+#    hostname: redis-node-4
     container_name: redis-node-4
-    command: [
-      "redis-server",
-      "--cluster-enabled", "yes",
-      "--cluster-announce-hostname", "redis-node-4",
-      "--cluster-config-file", "/data/nodes.conf",
-      "--cluster-node-timeout", "5000",
-      "--appendonly", "yes"
-    ]
-    volumes:
-      - ./data/redis-node-4:/data
+    ports:
+      - "6384:6379"
+      - "16384:16379"
     networks:
-      - redis_net
+      - redis-cluster
+    volumes:
+      - redis-node-4-data:/data
+    command: [ "redis-server", "--port", "6379", "--cluster-enabled", "yes",
+               "--cluster-announce-ip", "redis-node-4",
+               "--cluster-config-file", "/data/nodes.conf",
+               "--cluster-node-timeout", "5000",
+               "--cluster-announce-port", "6379",
+               "--cluster-announce-bus-port", "16379",
+               "--appendonly", "yes",
+               "--loadmodule", "/usr/lib/redis/modules/redisbloom.so" ]
     healthcheck:
-      test: [ "CMD", "redis-cli", "-h", "redis-node-4", "-p", "6379", "PING" ]
-      interval: 30s
-      retries: 3
-      start_period: 30s
-      timeout: 10s
+      test: [ "CMD", "redis-cli", "-p", "6379", "MODULE", "LIST" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   redis-node-5:
-    image: redis:7.0
+    image: redislabs/rebloom:latest
+#    hostname: redis-node-5
     container_name: redis-node-5
-    command: [
-      "redis-server",
-      "--cluster-enabled", "yes",
-      "--cluster-announce-hostname", "redis-node-5",
-      "--cluster-config-file", "/data/nodes.conf",
-      "--cluster-node-timeout", "5000",
-      "--appendonly", "yes"
-    ]
-    volumes:
-      - ./data/redis-node-5:/data
+    ports:
+      - "6385:6379"
+      - "16385:16379"
     networks:
-      - redis_net
+      - redis-cluster
+    volumes:
+      - redis-node-5-data:/data
+    command: [ "redis-server", "--port", "6379", "--cluster-enabled", "yes",
+               "--cluster-announce-ip", "redis-node-5",
+               "--cluster-config-file", "/data/nodes.conf",
+               "--cluster-node-timeout", "5000",
+               "--cluster-announce-port", "6379",
+               "--cluster-announce-bus-port", "16379",
+               "--appendonly", "yes",
+               "--loadmodule", "/usr/lib/redis/modules/redisbloom.so" ]
     healthcheck:
-      test: [ "CMD", "redis-cli", "-h", "redis-node-5", "-p", "6379", "PING" ]
-      interval: 30s
-      retries: 3
-      start_period: 30s
-      timeout: 10s
+      test: [ "CMD", "redis-cli", "-p", "6379", "MODULE", "LIST" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
 
   cluster-init:
-    image: redis:7.0
-    container_name: init-cluster
+    image: redislabs/rebloom:latest
+    container_name: cluster-init
     command: [ "/bin/bash", "/scripts/init-cluster.sh" ]
     depends_on:
-      - redis-node-0
-      - redis-node-1
-      - redis-node-2
-      - redis-node-3
-      - redis-node-4
-      - redis-node-5
+      redis-node-0:
+        condition: service_healthy
+      redis-node-1:
+        condition: service_healthy
+      redis-node-2:
+        condition: service_healthy
+      redis-node-3:
+        condition: service_healthy
+      redis-node-4:
+        condition: service_healthy
+      redis-node-5:
+        condition: service_healthy
     networks:
-      - redis_net
+      - redis-cluster
     volumes:
       - ./init-cluster.sh:/scripts/init-cluster.sh
 
   redis-standalone:
-    image: redislabs/rebloom:latest
+    image: redis:7
     container_name: redis_celery
     ports:
       - "6379:6379"
@@ -384,7 +410,7 @@ services:
       - .:/app
     networks:
       - dedup_net
-      - redis_net
+      - redis-cluster
     restart: always
     command: bash -c "./start-consumer.sh & sleep 5 && poetry run uvicorn app.main:main_app --host 0.0.0.0 --port 8000 --workers 4"
 
@@ -423,7 +449,7 @@ services:
       - DB_NAME=events
     networks:
       - dedup_net
-      - redis_net
+      - redis-cluster
     command: bash -c "sleep 30 && ./start-consumer.sh && poetry run python -m app.deduplicator.consumer"
 
 
@@ -438,16 +464,16 @@ services:
 volumes:
   pg_data:
   zookeeper_data:
-#  redis-node-0:
-#  redis-node-1:
-#  redis-node-2:
-#  redis-node-3:
-#  redis-node-4:
-#  redis-node-5:
+  redis-node-0-data:
+  redis-node-1-data:
+  redis-node-2-data:
+  redis-node-3-data:
+  redis-node-4-data:
+  redis-node-5-data:
 
 networks:
   dedup_net:
     driver: bridge
-  redis_net:
+  redis-cluster:
     driver: bridge
 
