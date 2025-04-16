@@ -1,5 +1,5 @@
 services:
-    # Zookeeper с надежными настройками
+
   zookeeper:
     image: zookeeper:3.8
     container_name: zookeeper
@@ -17,7 +17,7 @@ services:
       timeout: 5s
       retries: 10
 
-    # Kafka brokers с правильными настройками
+
   kafka1:
     image: wurstmeister/kafka:2.13-2.8.1
     container_name: kafka1
@@ -90,7 +90,7 @@ services:
       timeout: 10s
       retries: 10
 
-    # Инициализация Kafka (создание топиков)
+
   kafka-init:
     image: wurstmeister/kafka:2.13-2.8.1
     depends_on:
@@ -125,7 +125,6 @@ services:
   redis-node-0:
     image: redislabs/rebloom:latest
     container_name: redis-node-0
-#    hostname: redis-node-0
     ports:
       - "6380:6379"
       - "16380:16379"
@@ -150,7 +149,6 @@ services:
   redis-node-1:
     image: redislabs/rebloom:latest
     container_name: redis-node-1
-#    hostname: redis-node-1
     ports:
       - "6381:6379"
       - "16381:16379"
@@ -174,7 +172,6 @@ services:
 
   redis-node-2:
     image: redislabs/rebloom:latest
-#    hostname: redis-node-2
     container_name: redis-node-2
     ports:
       - "6382:6379"
@@ -199,7 +196,6 @@ services:
 
   redis-node-3:
     image: redislabs/rebloom:latest
-#    hostname: redis-node-3
     container_name: redis-node-3
     ports:
       - "6383:6379"
@@ -224,7 +220,6 @@ services:
 
   redis-node-4:
     image: redislabs/rebloom:latest
-#    hostname: redis-node-4
     container_name: redis-node-4
     ports:
       - "6384:6379"
@@ -249,7 +244,6 @@ services:
 
   redis-node-5:
     image: redislabs/rebloom:latest
-#    hostname: redis-node-5
     container_name: redis-node-5
     ports:
       - "6385:6379"

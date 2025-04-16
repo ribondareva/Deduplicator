@@ -8,8 +8,8 @@ load_dotenv()
 
 
 class Settings(BaseSettings):
-    REDIS_NODES: str  # Строка вида "host1:port1,host2:port2,..."
-    REDIS_URL: str  # Для Celery
+    REDIS_NODES: str
+    REDIS_URL: str
 
     DB_HOST: str
     DB_PORT: int

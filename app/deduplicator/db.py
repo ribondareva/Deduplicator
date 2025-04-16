@@ -14,16 +14,14 @@ from config import settings
 Base = declarative_base()
 
 
-# Конвертер для datetime объектов
 def datetime_converter(o: Any) -> Any:
     if isinstance(o, datetime):
-        return o.isoformat()  # Преобразуем datetime в ISO строку
+        return o.isoformat()
     raise TypeError(f"Object of type {o.__class__.__name__} is not JSON serializable")
 
 
 def get_event_hash(event: EventSchema) -> str:
     event_dict = event.dict()
-    # Преобразуем datetime объекты в строки перед сериализацией
     event_json = json.dumps(event_dict, sort_keys=True, default=datetime_converter)
     return hashlib.md5(event_json.encode()).hexdigest()
 

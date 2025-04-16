@@ -16,7 +16,6 @@ celery_app.conf.beat_schedule = {
 }
 celery_app.conf.timezone = 'UTC'
 
-# Дополнительная конфигурация
 celery_app.conf.update(
     task_routes={
         'app.tasks.purge_old_events': {'queue': 'default'},

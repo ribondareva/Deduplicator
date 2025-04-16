@@ -1,6 +1,5 @@
 #!/bin/bash
 
-# Ждём готовности всех Kafka брокеров
 echo "Waiting for Kafka brokers..."
 until kafka-broker-api-versions.sh --bootstrap-server kafka1:9093 >/dev/null 2>&1; do
   sleep 2

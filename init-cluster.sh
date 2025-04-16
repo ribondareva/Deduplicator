@@ -15,7 +15,7 @@ done
 
 echo "Все Redis-ноды готовы."
 
-# Проверка: не создан ли кластер уже?
+# Проверка: не создан ли кластер уже
 CLUSTER_INFO=$(redis-cli -h redis-node-0 -p 6379 cluster info 2>/dev/null || echo "")
 
 if echo "$CLUSTER_INFO" | grep -q "cluster_state:ok"; then
