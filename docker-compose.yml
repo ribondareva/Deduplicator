@@ -438,12 +438,12 @@ services:
 volumes:
   pg_data:
   zookeeper_data:
-  redis-data-0:
-  redis-data-1:
-  redis-data-2:
-  redis-data-3:
-  redis-data-4:
-  redis-data-5:
+#  redis-node-0:
+#  redis-node-1:
+#  redis-node-2:
+#  redis-node-3:
+#  redis-node-4:
+#  redis-node-5:
 
 networks:
   dedup_net:
