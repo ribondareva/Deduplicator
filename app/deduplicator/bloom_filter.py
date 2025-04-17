@@ -114,7 +114,7 @@ class Deduplicator:
             return False
 
     async def _check_bloom_module(self) -> bool:
-        """Проверка наличия модуля RedisBloom с правильными командами"""
+        """Проверка наличия модуля RedisBloom"""
         try:
             if self.redis is None:
                 return False
