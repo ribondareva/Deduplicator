@@ -1,11 +1,11 @@
 #!/bin/bash
 set -e
 
-host="postgres"
-port="5432"
-user="postgres"
-password="password"
-db="events"
+host="$DB_HOST"
+port="$DB_PORT"
+user="$DB_USER"
+password="$DB_PASSWORD"
+db="$DB_NAME"
 
 echo "Ожидание PostgreSQL ($host:$port)..."
 
@@ -19,9 +19,11 @@ echo "PostgreSQL доступен!"
 echo "Ожидание Redis Cluster..."
 while ! python3 -c "
 import socket, sys
-for node in ['redis-node-0', 'redis-node-1', 'redis-node-2', 'redis-node-3', 'redis-node-4', 'redis-node-5']:
+nodes = '${REDIS_NODES}'.split(',')
+for node in nodes:
     try:
-        socket.create_connection((node, 6379), timeout=5)
+        host, port = node.split(':')
+        socket.create_connection((host, int(port)), timeout=5)
     except:
         sys.exit(1)
 sys.exit(0)
