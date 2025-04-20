@@ -311,11 +311,6 @@ services:
       - REDIS_URL=redis://redis-standalone:6379/0
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/app
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=password
-      - DB_NAME=events
     volumes:
       - .:/app
     networks:
@@ -336,11 +331,6 @@ services:
       - REDIS_URL=redis://redis-standalone:6379/0
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/app
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=password
-      - DB_NAME=events
     volumes:
       - .:/app
     networks:
@@ -397,10 +387,9 @@ services:
       - .env
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka1:9093,kafka2:9094,kafka3:9095
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
       - REDIS_NODES=redis-node-0:6379,redis-node-1:6379,redis-node-2:6379,redis-node-3:6379,redis-node-4:6379,redis-node-5:6379
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=events
     volumes:
       - .:/app
     networks:
@@ -408,7 +397,7 @@ services:
       - redis-cluster
     restart: always
     command: >
-      bash -c './wait_for_kafka.sh && ./start-consumer.sh & sleep 5 && poetry run uvicorn app.main:main_app --host 0.0.0.0 --port 8000 --workers 4'
+      bash -c './wait_for_kafka.sh && ./start-consumer.sh & sleep 5 && poetry run uvicorn app.main:main_app --host 0.0.0.0 --port 8000 --workers 14'
 
   migrations:
     build: .
@@ -438,11 +427,6 @@ services:
       - REDIS_NODES=redis-node-0:6379,redis-node-1:6379,redis-node-2:6379,redis-node-3:6379,redis-node-4:6379,redis-node-5:6379
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/app
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=password
-      - DB_NAME=events
     networks:
       - dedup_net
       - redis-cluster
