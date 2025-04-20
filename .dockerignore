@@ -6,7 +6,7 @@ __pycache__/
 *.egg-info/
 dist/
 build/
-poetry.lock  # по желанию, если генерится в CI
+poetry.lock
 
 # Виртуальное окружение
 venv/
@@ -24,12 +24,8 @@ venv/
 .coverage
 
 # Docker
-.dockerignore
 Dockerfile
 docker-compose.yml
-
-# Конфиги/секреты
-#.env
 
 # Локальные логи
 *.log
