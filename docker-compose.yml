@@ -387,9 +387,9 @@ services:
       - .env
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka1:9093,kafka2:9094,kafka3:9095
+      - REDIS_NODES=redis-node-0:6379,redis-node-1:6379,redis-node-2:6379,redis-node-3:6379,redis-node-4:6379,redis-node-5:6379
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/app
-      - REDIS_NODES=redis-node-0:6379,redis-node-1:6379,redis-node-2:6379,redis-node-3:6379,redis-node-4:6379,redis-node-5:6379
     volumes:
       - .:/app
     networks:
