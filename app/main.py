@@ -2,6 +2,10 @@ import asyncio
 
 from fastapi import FastAPI
 from api.endpoints import router as api_router
+from logger_config import setup_logger
+
+setup_logger()
+
 from deduplicator.bloom_filter import Deduplicator
 from deduplicator.producer import init_kafka_producer, close_kafka_producer
 from tasks import purge_old_events

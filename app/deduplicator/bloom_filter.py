@@ -13,7 +13,6 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
-# Тип для Redis клиента (кластерный или обычный)
 RedisClient = Union[Redis, RedisCluster]
 
 
@@ -23,42 +22,43 @@ class Deduplicator:
         self.current_bloom_key = settings.REDIS_BLOOM_KEY
         self.last_bloom_reset_time: Optional[datetime] = None
         self.bloom_initialized = False
-        self.bloom_supported = True  # Флаг поддержки Bloom фильтров
+        self.bloom_supported = True
         self.cluster_nodes = settings.REDIS_CLUSTER_NODES
 
     async def _wait_for_cluster_ready(self, retries: int = 10, delay: int = 3) -> bool:
-        """Ожидает готовности кластера Redis"""
         startup_node = self.cluster_nodes[0]
-        logger.debug(f"Attempting to connect to Redis node {startup_node['host']}:{startup_node['port']}")
+        logger.debug("Attempting to connect to Redis node %s:%s", startup_node['host'], startup_node['port'])
 
         for attempt in range(1, retries + 1):
             try:
                 async with Redis(
-                        host=startup_node["host"],
-                        port=startup_node["port"],
-                        decode_responses=True,
-                        socket_timeout=5,
-                        socket_connect_timeout=5
+                    host=startup_node["host"],
+                    port=startup_node["port"],
+                    decode_responses=True,
+                    socket_timeout=5,
+                    socket_connect_timeout=5
                 ) as temp_client:
                     cluster_info = await temp_client.execute_command("CLUSTER INFO")
                     if isinstance(cluster_info, str):
-                        info_dict = dict(line.strip().split(":")
-                                         for line in cluster_info.splitlines()
-                                         if ":" in line)
+                        info_dict = dict(
+                            line.strip().split(":")
+                            for line in cluster_info.splitlines()
+                            if ":" in line
+                        )
                     else:
                         info_dict = cluster_info
 
                     cluster_state = info_dict.get("cluster_state")
                     slots_assigned = int(info_dict.get("cluster_slots_assigned", "0"))
 
-                    logger.debug(f"Cluster check #{attempt}: state={cluster_state}, slots={slots_assigned}")
+                    logger.debug("Cluster check #%s: state=%s, slots=%s", attempt, cluster_state, slots_assigned)
 
                     if cluster_state == "ok" and slots_assigned == 16384:
                         logger.info("Redis Cluster is ready")
                         return True
 
             except Exception as e:
-                logger.warning(f"Cluster check failed (attempt {attempt}): {e}")
+                logger.warning("Cluster check failed (attempt %s): %s", attempt, e)
 
             await asyncio.sleep(delay)
 
@@ -66,14 +66,12 @@ class Deduplicator:
         return False
 
     async def init_redis(self) -> None:
-        """Инициализация подключения к Redis Cluster"""
         if self.redis is not None:
             return
 
         try:
             logger.info("Initializing Redis Cluster connection...")
 
-            # Конфигурация для Redis Cluster
             cluster_params: Dict[str, Any] = {
                 "host": self.cluster_nodes[0]["host"],
                 "port": self.cluster_nodes[0]["port"],
@@ -96,38 +94,30 @@ class Deduplicator:
             if self.bloom_supported:
                 await self.initialize_bloom_filter()
 
-            logger.info(f"Redis Cluster initialized successfully. Bloom support: {self.bloom_supported}")
+            logger.info("Redis Cluster initialized successfully. Bloom support: %s", self.bloom_supported)
 
         except RedisError as e:
-            logger.error(f"Redis initialization failed: {e}")
+            logger.error("Redis initialization failed: %s", e)
             await self._close_connection()
-            raise RuntimeError(f"Redis initialization failed: {e}") from e
+            raise RuntimeError("Redis initialization failed: %s" % e) from e
 
     async def _check_connection(self) -> bool:
-        """Проверка соединения с кластером"""
         try:
             if self.redis is None:
                 return False
             return await self.redis.ping()
         except Exception as e:
-            logger.error(f"Connection check failed: {e}")
+            logger.error("Connection check failed: %s", e)
             return False
 
     async def _check_bloom_module(self) -> bool:
-        """Проверка наличия модуля RedisBloom"""
         try:
             if self.redis is None:
                 return False
 
-            test_key = f"temp_bloom_check_{datetime.now().timestamp()}"
+            test_key = "temp_bloom_check_%s" % datetime.now().timestamp()
             try:
-                await self.redis.execute_command(
-                    "BF.ADD",
-                    test_key,
-                    "test_value"
-                )
-
-                # Очищаем тестовые данные
+                await self.redis.execute_command("BF.ADD", test_key, "test_value")
                 await self.redis.execute_command("DEL", test_key)
                 return True
 
@@ -137,11 +127,10 @@ class Deduplicator:
                 return True
 
         except Exception as e:
-            logger.error(f"Bloom module check failed: {e}")
+            logger.error("Bloom module check failed: %s", e)
             return False
 
     async def initialize_bloom_filter(self) -> None:
-        """Инициализация Bloom-фильтра"""
         if not self.bloom_supported:
             return
 
@@ -163,24 +152,23 @@ class Deduplicator:
             )
             self.last_bloom_reset_time = now
             self.bloom_initialized = True
-            logger.info(f"Bloom filter initialized: {self.current_bloom_key}")
+            logger.info("Bloom filter initialized: %s", self.current_bloom_key)
         except ResponseError as e:
             if "item exists" not in str(e):
                 raise
             logger.debug("Bloom filter already exists")
             self.bloom_initialized = True
         except Exception as e:
-            logger.error(f"Bloom filter init failed: {e}")
+            logger.error("Bloom filter init failed: %s", e)
             self.bloom_supported = False
             raise
 
     async def is_unique(self, item_id: str) -> bool:
-        """Проверка уникальности элемента"""
         if not self.redis:
             raise RuntimeError("Redis not initialized")
 
         try:
-            ttl_key = f"bloom_ttl:{item_id}"
+            ttl_key = "bloom_ttl:%s" % item_id
             if await self.redis.exists(ttl_key):
                 return False
 
@@ -190,19 +178,18 @@ class Deduplicator:
                     self.current_bloom_key,
                     item_id
                 )
-            return not await self.redis.exists(f"dedup:{item_id}")
+            return not await self.redis.exists("dedup:%s" % item_id)
 
         except Exception as e:
-            logger.error(f"Uniqueness check failed: {e}")
-            raise RuntimeError(f"Uniqueness check failed: {e}")
+            logger.error("Uniqueness check failed: %s", e)
+            raise RuntimeError("Uniqueness check failed: %s" % e)
 
     async def add_to_bloom(self, item_id: str, ttl_seconds: int = 3600) -> None:
-        """Добавление элемента в Bloom-фильтр"""
         if not self.redis:
             raise RuntimeError("Redis not initialized")
 
         try:
-            ttl_key = f"bloom_ttl:{item_id}"
+            ttl_key = "bloom_ttl:%s" % item_id
 
             if self.bloom_supported and self.bloom_initialized:
                 await self.redis.execute_command(
@@ -211,22 +198,21 @@ class Deduplicator:
                     item_id
                 )
             else:
-                await self.redis.setex(f"dedup:{item_id}", ttl_seconds, 1)
+                await self.redis.setex("dedup:%s" % item_id, ttl_seconds, 1)
 
             if not await self.redis.exists(ttl_key):
                 await self.redis.setex(ttl_key, ttl_seconds, 1)
 
         except Exception as e:
-            logger.error(f"Failed to add to Bloom: {e}")
-            raise RuntimeError(f"Failed to add to Bloom: {e}")
+            logger.error("Failed to add to Bloom: %s", e)
+            raise RuntimeError("Failed to add to Bloom: %s" % e)
 
     async def _close_connection(self) -> None:
-        """Закрытие соединения"""
         if self.redis:
             try:
                 await self.redis.close()
             except Exception as e:
-                logger.error(f"Error closing connection: {e}")
+                logger.error("Error closing connection: %s", e)
             finally:
                 self.redis = None
                 self.bloom_initialized = False

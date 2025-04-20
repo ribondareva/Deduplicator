@@ -8,7 +8,6 @@ from deduplicator.db import Database, get_event_hash
 from deduplicator.bloom_filter import Deduplicator
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
 KAFKA_BOOTSTRAP_SERVERS = settings.KAFKA_BOOTSTRAP_SERVERS
 KAFKA_TOPIC_NAME = settings.KAFKA_TOPIC_NAME
@@ -26,7 +25,7 @@ async def periodic_bloom_reinitialization(deduplicator: Deduplicator, interval_m
             await deduplicator.initialize_bloom_filter()
             logger.info("Bloom filter reinitialized successfully")
         except Exception as e:
-            logger.error(f"Error during periodic Bloom filter reinitialization: {e}")
+            logger.error("Error during periodic Bloom filter reinitialization: %s", e)
             await asyncio.sleep(60)
 
 
@@ -37,7 +36,7 @@ async def init_redis_in_consumer() -> None:
             await deduplicator.init_redis()
             logger.info("Redis connected successfully")
     except Exception as e:
-        logger.error(f"Failed to connect to Redis: {e}")
+        logger.error("Failed to connect to Redis: %s", e)
         raise
 
 
@@ -46,7 +45,7 @@ async def process_event(event_data: dict) -> None:
     try:
         event = EventSchema(**event_data)
     except Exception as e:
-        logger.error(f"Invalid event data: {e}")
+        logger.error("Invalid event data: %s", e)
         return
 
     if not event.product_id:
@@ -56,23 +55,20 @@ async def process_event(event_data: dict) -> None:
     item_id = event.product_id
     event_hash = get_event_hash(event)
 
-    # Проверка дубликатов в БД
     if await db.check_event_exists(event_hash):
-        logger.info(f"Duplicate event in DB: {event_hash}")
+        logger.info("Duplicate event in DB: %s", event_hash)
         return
 
-    # Проверка дубликатов в Bloom-фильтре
     if not await deduplicator.is_unique(item_id):
-        logger.info(f"Duplicate event (Bloom): {item_id}")
+        logger.info("Duplicate event (Bloom): %s", item_id)
         return
 
-    # Сохранение уникального события
     try:
         await db.insert_event(event, event_hash)
         await deduplicator.add_to_bloom(item_id)
-        logger.info(f"Saved unique event: {item_id}")
+        logger.info("Saved unique event: %s", item_id)
     except Exception as e:
-        logger.error(f"Failed to save event {item_id}: {e}")
+        logger.error("Failed to save event %s: %s", item_id, e)
 
 
 async def consume_messages(consumer: AIOKafkaConsumer) -> None:
@@ -82,9 +78,9 @@ async def consume_messages(consumer: AIOKafkaConsumer) -> None:
             try:
                 await process_event(msg.value)
             except Exception as e:
-                logger.error(f"Error processing message: {e}")
+                logger.error("Error processing message: %s", e)
     except Exception as e:
-        logger.error(f"Consumer error: {e}")
+        logger.error("Consumer error: %s", e)
         raise
 
 
@@ -94,7 +90,6 @@ async def main() -> None:
         await init_redis_in_consumer()
         await db.init_db()
 
-        # Запуск фоновой задачи
         asyncio.create_task(periodic_bloom_reinitialization(deduplicator))
 
         consumer = AIOKafkaConsumer(
@@ -116,7 +111,7 @@ async def main() -> None:
             await db.close_db()
             logger.info("Consumer stopped gracefully")
     except Exception as e:
-        logger.error(f"Fatal error in consumer: {e}")
+        logger.error("Fatal error in consumer: %s", e)
         raise
 
 

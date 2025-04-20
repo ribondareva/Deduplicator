@@ -1,9 +1,12 @@
 import asyncio
+import logging
 
 from aiokafka import AIOKafkaProducer
 from api.schemas import EventSchema
 
 from config import settings
+
+logger = logging.getLogger(__name__)
 
 producer: AIOKafkaProducer = None
 
@@ -21,14 +24,17 @@ async def init_kafka_producer():
         try:
             partitions = await producer.partitions_for(settings.KAFKA_TOPIC_NAME)
             if partitions:
-                print(f"Kafka topic '{settings.KAFKA_TOPIC_NAME}' is available with partitions: {partitions}")
+                logger.info("Kafka topic '%s' is available with partitions: %s", settings.KAFKA_TOPIC_NAME, partitions)
                 return
             else:
-                print(f"Topic exists but has no partitions yet (attempt {attempt + 1})")
+                logger.warning("Topic exists but has no partitions yet (attempt %d)", attempt + 1)
         except Exception as e:
-            print(
-                f"Waiting for Kafka topic '{settings.KAFKA_TOPIC_NAME}' to become available (attempt {attempt + 1})")
-            print(f"Error: {e}")
+            logger.warning(
+                "Waiting for Kafka topic '%s' to become available (attempt %d)",
+                settings.KAFKA_TOPIC_NAME,
+                attempt + 1
+            )
+            logger.debug("Error while checking topic availability: %s", e)
 
         await asyncio.sleep(3)
 
