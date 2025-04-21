@@ -398,6 +398,29 @@ services:
     restart: always
     command: >
       bash -c './wait_for_kafka.sh && ./start-consumer.sh & sleep 5 && poetry run uvicorn app.main:main_app --host 0.0.0.0 --port 8000 --workers 14'
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  locust:
+    image: locustio/locust:2.35.0
+    ports:
+      - "8089:8089"
+    volumes:
+      - ./test:/mnt/locust
+    working_dir: /mnt/locust
+    entrypoint: locust
+    command: >
+      -f /mnt/locust/locustfile.py
+      --host=http://app:8000
+      --web-host=0.0.0.0
+    depends_on:
+      - app
+    networks:
+      - dedup_net
+
 
   migrations:
     build: .
