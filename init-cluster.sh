@@ -35,3 +35,5 @@ redis-cli --cluster create \
   redis-node-5:6379 \
   --cluster-replicas 1 \
   --cluster-yes
+
+sleep 3

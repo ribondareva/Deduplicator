@@ -5,7 +5,7 @@ from aiokafka import AIOKafkaConsumer
 from app.api.schemas import EventSchema
 from app.config import settings
 from deduplicator.db import Database, get_event_hash
-from deduplicator.bloom_filter import Deduplicator
+from deduplicator.bloom_filter import deduplicator, Deduplicator
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +13,6 @@ KAFKA_BOOTSTRAP_SERVERS = settings.KAFKA_BOOTSTRAP_SERVERS
 KAFKA_TOPIC_NAME = settings.KAFKA_TOPIC_NAME
 
 db = Database()
-deduplicator = Deduplicator()
 
 
 async def periodic_bloom_reinitialization(deduplicator: Deduplicator, interval_minutes: int = 60) -> None:
@@ -109,6 +108,7 @@ async def main() -> None:
         finally:
             await consumer.stop()
             await db.close_db()
+            await deduplicator.close()
             logger.info("Consumer stopped gracefully")
     except Exception as e:
         logger.error("Fatal error in consumer: %s", e)

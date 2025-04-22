@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, Union
 
@@ -217,8 +218,18 @@ class Deduplicator:
                 self.redis = None
                 self.bloom_initialized = False
 
+    async def close(self):
+        await self._close_connection()
 
-async def get_deduplicator() -> Deduplicator:
+
+@asynccontextmanager
+async def get_deduplicator():
     deduplicator = Deduplicator()
     await deduplicator.init_redis()
-    return deduplicator
+    try:
+        yield deduplicator
+    finally:
+        await deduplicator.close()
+
+
+deduplicator = Deduplicator()

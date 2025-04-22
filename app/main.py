@@ -6,15 +6,12 @@ from logger_config import setup_logger
 
 setup_logger()
 
-from deduplicator.bloom_filter import Deduplicator
 from deduplicator.producer import init_kafka_producer, close_kafka_producer
 from tasks import purge_old_events
 
 main_app = FastAPI(title="Deduplication Service")
 
 main_app.include_router(api_router)
-
-deduplicator = Deduplicator()
 
 
 @main_app.on_event("startup")
