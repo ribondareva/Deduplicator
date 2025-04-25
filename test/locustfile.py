@@ -49,21 +49,21 @@ class TestUser(HttpUser):
         try:
             with self.client.post("/event", json=payload, catch_response=True) as response:
                 total_time = int((time.time() - start_time) * 1000)
-                logger.info(f"Status: {response.status_code} | Time: {response.elapsed.total_seconds()}s")
+                logger.info("Status: %s | Time: %ss" % (response.status_code, response.elapsed.total_seconds()))
 
                 if response.status_code != 200:
-                    response.failure(f"{response.status_code}: {response.text}")
+                    response.failure("%s: %s" % (response.status_code, response.text))
 
                 events.request.fire(
                     request_type="POST",
                     name="POST /event",
                     response_time=total_time,
                     response_length=len(response.content),
-                    exception=None if response.status_code == 200 else f"{response.status_code}: {response.text}"
+                    exception=None if response.status_code == 200 else "%s: %s" % (response.status_code, response.text)
                 )
         except Exception as e:
             total_time = int((time.time() - start_time) * 1000)
-            logger.error(f"Request failed: {str(e)}")
+            logger.error("Request failed: %s" % str(e))
             events.request.fire(
                 request_type="POST",
                 name="POST /event",
