@@ -1,5 +1,6 @@
 import hashlib
 import json
+import logging
 import uuid
 from datetime import datetime
 from typing import Optional, Any
@@ -12,12 +13,13 @@ from app.api.schemas import EventSchema
 from config import settings
 
 Base = declarative_base()
+logger = logging.getLogger(__name__)
 
 
 def datetime_converter(o: Any) -> Any:
     if isinstance(o, datetime):
         return o.isoformat()
-    raise TypeError(f"Object of type {o.__class__.__name__} is not JSON serializable")
+    raise TypeError("Object of type %s is not JSON serializable", o.__class__.__name__)
 
 
 def get_event_hash(event: EventSchema) -> str:
@@ -64,7 +66,7 @@ class Database:
     async def insert_event(self, event: EventSchema, event_hash: str) -> None:
         """Добавление уникального события в таблицу events"""
         async with self.pool.acquire() as conn:
-            print("Added to DB")
+            logger.info("Added to DB")
             await conn.execute(
                 """
                 INSERT INTO events (
@@ -86,7 +88,7 @@ class Database:
 
     async def check_event_exists(self, event_hash: str) -> bool:
         """Проверка, существует ли событие с данным event_hash"""
-        print(f"Checking DB for event_hash: {event_hash}")
+        logger.info("Checking DB for event_hash: %s", event_hash)
         async with self.pool.acquire() as conn:
             result = await conn.fetchrow(
                 "SELECT 1 FROM events WHERE event_hash = $1",

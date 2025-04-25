@@ -14,7 +14,7 @@ def purge_old_events():
     """Задача для очистки старых событий из базы данных."""
     logger.info("Starting purge...")
     asyncio.run(_purge_old_events())
-    logger.info(f"Purge completed at {datetime.utcnow()}")
+    logger.info("Purge completed at %s", datetime.utcnow())
 
 
 async def _purge_old_events():
@@ -24,6 +24,6 @@ async def _purge_old_events():
         async with db.pool.acquire() as conn:
             deleted = await conn.execute("DELETE FROM events WHERE created_at < NOW() - INTERVAL '7 days'")
             await db.close_db()
-            logger.info(f"Deleted {deleted} old events")
+            logger.info("Deleted %s old events", deleted)
     except Exception as e:
-        logger.error(f"Purge failed: {str(e)}")
+        logger.error("Purge failed: %s", str(e))

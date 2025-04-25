@@ -439,39 +439,39 @@ services:
       interval: 10s
       retries: 10
 
-#  locust:
-#    image: locustio/locust:2.35.0
-#    ports:
-#      - "8089:8089"
-#    volumes:
-#      - ./test:/mnt/locust
-#    working_dir: /mnt/locust
-#    entrypoint: locust
-#    command: >
-#      -f /mnt/locust/locustfile.py
-#      --host=http://app:8000
-#      --web-host=0.0.0.0
-#    depends_on:
-#      cluster-init:
-#        condition: service_completed_successfully
-#      kafka-init:
-#        condition: service_completed_successfully
-#      postgres:
-#        condition: service_healthy
-#      app:
-#        condition: service_healthy
-#      consumer_1:
-#        condition: service_started
-#      consumer_2:
-#        condition: service_started
-#      consumer_3:
-#        condition: service_started
-#      redis-standalone:
-#        condition: service_started
-#      celery_worker:
-#        condition: service_healthy
-#    networks:
-#      - dedup_net
+  locust:
+    image: locustio/locust:2.35.0
+    ports:
+      - "8089:8089"
+    volumes:
+      - ./test:/mnt/locust
+    working_dir: /mnt/locust
+    entrypoint: locust
+    command: >
+      -f /mnt/locust/locustfile.py
+      --host=http://app:8000
+      --web-host=0.0.0.0
+    depends_on:
+      cluster-init:
+        condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+      consumer_1:
+        condition: service_started
+      consumer_2:
+        condition: service_started
+      consumer_3:
+        condition: service_started
+      redis-standalone:
+        condition: service_started
+      celery_worker:
+        condition: service_healthy
+    networks:
+      - dedup_net
 
 
   migrations:

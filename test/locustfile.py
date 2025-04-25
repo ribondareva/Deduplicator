@@ -27,7 +27,7 @@ test_json_template = {
 
 
 class TestUser(HttpUser):
-    wait_time = between(1, 2)
+    wait_time = between(0.1, 0.5)
 
     def generate_event_json(self):
         now = datetime.now(UTC)
