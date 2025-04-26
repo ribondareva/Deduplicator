@@ -7,7 +7,9 @@ from app.api.schemas import EventSchema
 from app.config import settings
 from deduplicator.bloom_filter import Deduplicator
 from deduplicator.db import Database, get_event_hash
+from logger_config import setup_logger
 
+setup_logger()
 logger = logging.getLogger(__name__)
 
 # Глобальные объекты
@@ -115,11 +117,10 @@ async def main():
         auto_offset_reset="earliest",
     )
 
+    await consumer.start()
+    logger.info("Kafka consumer started")
     consumer.subscribe([KAFKA_TOPIC_NAME])
     logger.info("Subscribed to topic: %s", KAFKA_TOPIC_NAME)
-    await consumer.start()
-
-    logger.info("Kafka consumer started")
 
     try:
         await consume_messages(consumer)
