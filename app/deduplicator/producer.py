@@ -18,7 +18,7 @@ MAX_RETRIES = 5
 # Функция для сериализации данных, чтобы обрабатывать datetime
 def json_serializer(obj):
     if isinstance(obj, datetime):
-        return obj.isoformat()  # Преобразуем datetime в строку
+        return obj.isoformat()  # Преобразовываем datetime в строку
     raise TypeError(f"Type {type(obj)} not serializable")
 
 
@@ -73,7 +73,7 @@ async def send_event_to_kafka(event: EventSchema):
         logger.info("Serialized event to send to Kafka: %s", message)
 
         await producer.send_and_wait(settings.KAFKA_TOPIC_NAME, message.encode("utf-8"))
-        logger.info("Event sent to Kafka: %s", message)  # <-- просто message
+        logger.info("Event sent to Kafka: %s", message)
     except Exception as e:
         logger.error("Failed to send event to Kafka: %s", e)
         raise

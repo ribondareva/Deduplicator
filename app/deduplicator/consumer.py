@@ -24,13 +24,11 @@ async def init_services():
     """Инициализация Redis и базы данных."""
     logger.info("Initializing services...")
 
-    # Инициализируем Redis
     await deduplicator.init_redis()
     redis_ready = await deduplicator.wait_for_cluster_ready()
     if not redis_ready:
         raise RuntimeError("Redis cluster is not ready")
 
-    # Инициализируем подключение к базе данных
     await db.init_db()
 
     logger.info("Services initialized successfully")
@@ -54,10 +52,9 @@ async def periodic_bloom_reinitialization(interval_minutes: int = 60):
             logger.info("Bloom filter reinitialized successfully")
         except Exception as e:
             logger.error("Error during Bloom filter reinitialization: %s", e)
-            await asyncio.sleep(60)  # маленькая задержка на случай фейла
+            await asyncio.sleep(60)  # небольшая задержка на случай фейла
 
 
-# Проверка в базе данных только, без проверки через Redis на втором этапе
 async def process_event(event_data: dict):
     """Обработка одного события."""
     try:
@@ -81,7 +78,6 @@ async def process_event(event_data: dict):
     # Сохраняем в базу и добавляем в Bloom фильтр
     try:
         await db.insert_event(event, event_hash)
-        # await deduplicator.add_to_bloom(item_id)  # Добавляем в фильтр только если все проверено
         logger.info("Saved unique event: %s", item_id)
     except Exception as e:
         logger.error("Failed to save event %s: %s", item_id, e)
@@ -105,7 +101,6 @@ async def main():
     asyncio.create_task(periodic_bloom_reinitialization())
 
     consumer = AIOKafkaConsumer(
-        # KAFKA_TOPIC_NAME,
         bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
         group_id="deduplication-consumer-group",
         value_deserializer=lambda m: json.loads(m.decode("utf-8")),

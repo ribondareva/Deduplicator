@@ -24,18 +24,15 @@ async def init_services():
 
     logger.info("Starting up: initializing Redis and Kafka")
 
-    # Инициализируем Redis
     await deduplicator.init_redis()
 
     # Получаем ссылку на соединение Redis после инициализации
     redis_connection = deduplicator.redis_connection
 
-    # Проверяем, что Redis готов
     redis_ready = await deduplicator.wait_for_cluster_ready()
     if not redis_ready:
         raise RuntimeError("Redis cluster is not ready")
 
-    # Инициализируем Kafka
     kafka_producer = await init_kafka_producer()
 
     # Запускаем задачу purge_old_events через 24 часа (3600 * 24 секунд)
@@ -48,7 +45,6 @@ async def shutdown_services():
     """ Ожидаем, пока все сервисы будут корректно завершены. """
     logger.info("Shutting down: closing Redis and Kafka")
 
-    # Закрываем соединения с Redis и Kafka
     if redis_connection:
         await deduplicator.close()
     if kafka_producer:

@@ -1,4 +1,3 @@
-# Удаление из базы данных событий, которым больше 7 дней
 import asyncio
 import logging
 
@@ -18,6 +17,7 @@ def purge_old_events():
 
 
 async def _purge_old_events():
+    """Удаление из базы данных событий, которым больше 7 дней"""
     try:
         db = Database()
         await db.init_db()
