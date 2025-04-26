@@ -42,7 +42,6 @@ class TestUser(HttpUser):
 
     @task
     def send_event(self):
-        # logger.info("Locust тест запускается после успешного health-check")
         payload = self.generate_event_json()
         start_time = time.time()
 
