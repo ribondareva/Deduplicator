@@ -115,8 +115,10 @@ async def main():
         auto_offset_reset="earliest",
     )
 
-    await consumer.start()
     consumer.subscribe([KAFKA_TOPIC_NAME])
+    logger.info("Subscribed to topic: %s", KAFKA_TOPIC_NAME)
+    await consumer.start()
+
     logger.info("Kafka consumer started")
 
     try:

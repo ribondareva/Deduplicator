@@ -1,5 +1,7 @@
 import asyncio
+import json
 import logging
+from datetime import datetime
 
 from aiokafka import AIOKafkaProducer
 from api.schemas import EventSchema
@@ -11,6 +13,18 @@ logger = logging.getLogger(__name__)
 producer: AIOKafkaProducer = None
 
 MAX_RETRIES = 5
+
+
+# Функция для сериализации данных, чтобы обрабатывать datetime
+def json_serializer(obj):
+    if isinstance(obj, datetime):
+        return obj.isoformat()  # Преобразуем datetime в строку
+    raise TypeError(f"Type {type(obj)} not serializable")
+
+
+# Функция сериализации событий
+def serialize_event(event: EventSchema) -> str:
+    return json.dumps(event.dict(), default=json_serializer, sort_keys=True)
 
 
 async def init_kafka_producer():
@@ -51,4 +65,15 @@ async def send_event_to_kafka(event: EventSchema):
     global producer
     if not producer:
         raise RuntimeError("Kafka producer is not initialized")
-    await producer.send_and_wait(settings.KAFKA_TOPIC_NAME, event.model_dump_json().encode("utf-8"))
+    try:
+        event_dict = event.dict()
+        logger.info("Event dict before serialization: %s", event_dict)
+
+        message = serialize_event(event)
+        logger.info("Serialized event to send to Kafka: %s", message)
+
+        await producer.send_and_wait(settings.KAFKA_TOPIC_NAME, message.encode("utf-8"))
+        logger.info("Event sent to Kafka: %s", message)  # <-- просто message
+    except Exception as e:
+        logger.error("Failed to send event to Kafka: %s", e)
+        raise
