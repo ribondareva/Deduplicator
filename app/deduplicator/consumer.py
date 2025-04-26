@@ -57,6 +57,7 @@ async def periodic_bloom_reinitialization(interval_minutes: int = 60):
             await asyncio.sleep(60)  # маленькая задержка на случай фейла
 
 
+# Проверка в базе данных только, без проверки через Redis на втором этапе
 async def process_event(event_data: dict):
     """Обработка одного события."""
     try:
@@ -77,15 +78,10 @@ async def process_event(event_data: dict):
         logger.info("Duplicate event found in DB: %s", event_hash)
         return
 
-    # Проверяем через Bloom-фильтр
-    if not await deduplicator.is_unique(item_id):
-        logger.info("Duplicate event detected by Bloom filter: %s", item_id)
-        return
-
-    # Сохраняем в базу
+    # Сохраняем в базу и добавляем в Bloom фильтр
     try:
         await db.insert_event(event, event_hash)
-        await deduplicator.add_to_bloom(item_id)
+        # await deduplicator.add_to_bloom(item_id)  # Добавляем в фильтр только если все проверено
         logger.info("Saved unique event: %s", item_id)
     except Exception as e:
         logger.error("Failed to save event %s: %s", item_id, e)
