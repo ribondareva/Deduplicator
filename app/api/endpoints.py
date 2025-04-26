@@ -48,7 +48,6 @@ async def process_event(event: EventSchema, request: Request):
             kafka_duration = time.monotonic() - kafka_start
             logger.info(f"Kafka send took {kafka_duration:.3f}s")
 
-            # Сразу добавляем в Redis Bloom, чтобы предотвратить повторное попадание
             await deduplicator.add_to_bloom(item_id)
 
             total_duration = time.monotonic() - total_start
@@ -58,9 +57,11 @@ async def process_event(event: EventSchema, request: Request):
         else:
             logger.warning("Event is not unique: %s", event)
             raise HTTPException(status_code=400, detail=f"Event with item_id {item_id} is not unique")
+    except HTTPException as e:
+        raise e
     except RuntimeError as e:
         logger.error("Redis initialization or connection error: %s", str(e))
         raise HTTPException(status_code=500, detail="Error with Redis connection")
     except Exception as e:
-        logger.error("Error processing event: %s", str(e))
+        logger.error("Unexpected error processing event: %s", str(e))
         raise HTTPException(status_code=500, detail="Internal server error")
