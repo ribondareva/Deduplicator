@@ -6,7 +6,6 @@ from datetime import datetime, timedelta, UTC
 import copy
 import logging
 
-
 logger = logging.getLogger(__name__)
 
 test_json_template = {
@@ -43,6 +42,7 @@ class TestUser(HttpUser):
 
     @task
     def send_event(self):
+        # logger.info("Locust тест запускается после успешного health-check")
         payload = self.generate_event_json()
         start_time = time.time()
 
@@ -53,13 +53,21 @@ class TestUser(HttpUser):
 
                 if response.status_code != 200:
                     response.failure("%s: %s" % (response.status_code, response.text))
+                    events.request.fire(
+                        request_type="POST",
+                        name="POST /event",
+                        response_time=total_time,
+                        response_length=len(response.content),
+                        exception="%s: %s" % (response.status_code, response.text)
+                    )
+                    return
 
                 events.request.fire(
                     request_type="POST",
                     name="POST /event",
                     response_time=total_time,
                     response_length=len(response.content),
-                    exception=None if response.status_code == 200 else "%s: %s" % (response.status_code, response.text)
+                    exception=None
                 )
         except Exception as e:
             total_time = int((time.time() - start_time) * 1000)

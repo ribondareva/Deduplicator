@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, Union
 
@@ -20,6 +19,7 @@ RedisClient = Union[Redis, RedisCluster]
 class Deduplicator:
     def __init__(self):
         self.redis: Optional[RedisClient] = None
+        self.redis_connection: Optional[RedisClient] = None
         self.current_bloom_key = settings.REDIS_BLOOM_KEY
         self.last_bloom_reset_time: Optional[datetime] = None
         self.bloom_initialized = False
@@ -33,11 +33,11 @@ class Deduplicator:
         for attempt in range(1, retries + 1):
             try:
                 async with Redis(
-                    host=startup_node["host"],
-                    port=startup_node["port"],
-                    decode_responses=True,
-                    socket_timeout=5,
-                    socket_connect_timeout=5
+                        host=startup_node["host"],
+                        port=startup_node["port"],
+                        decode_responses=True,
+                        socket_timeout=5,
+                        socket_connect_timeout=5
                 ) as temp_client:
                     cluster_info = await temp_client.execute_command("CLUSTER INFO")
                     if isinstance(cluster_info, str):
@@ -66,6 +66,13 @@ class Deduplicator:
         logger.error("Cluster did not become ready")
         return False
 
+    async def wait_for_cluster_ready(self, retries: int = 10, delay: int = 3) -> bool:
+        """
+        Публичный метод для проверки готовности кластера.
+        Используется для ожидания готовности Redis-кластера.
+        """
+        return await self._wait_for_cluster_ready(retries, delay)
+
     async def init_redis(self) -> None:
         if self.redis is not None:
             return
@@ -84,6 +91,7 @@ class Deduplicator:
             }
 
             self.redis = RedisCluster(**cluster_params)
+            self.redis_connection = self.redis
 
             self.bloom_supported = await self._check_bloom_module()
             if not self.bloom_supported:
@@ -101,10 +109,15 @@ class Deduplicator:
             logger.error("Redis initialization failed: %s", e)
             await self._close_connection()
             raise RuntimeError("Redis initialization failed: %s" % e) from e
+        except Exception as e:
+            logger.error("Unexpected error during Redis initialization: %s", e)
+            await self._close_connection()
+            raise RuntimeError("Unexpected error during Redis initialization: %s" % e) from e
 
     async def _check_connection(self) -> bool:
         try:
             if self.redis is None:
+                logger.error("Redis client is not initialized.")
                 return False
             return await self.redis.ping()
         except Exception as e:
@@ -114,6 +127,7 @@ class Deduplicator:
     async def _check_bloom_module(self) -> bool:
         try:
             if self.redis is None:
+                logger.error("Redis client is not initialized.")
                 return False
 
             test_key = "temp_bloom_check_%s" % datetime.now().timestamp()
@@ -124,6 +138,7 @@ class Deduplicator:
 
             except ResponseError as e:
                 if "unknown command" in str(e).lower():
+                    logger.warning("RedisBloom module is not installed.")
                     return False
                 return True
 
@@ -166,7 +181,7 @@ class Deduplicator:
 
     async def is_unique(self, item_id: str) -> bool:
         if not self.redis:
-            raise RuntimeError("Redis not initialized")
+            raise RuntimeError("Redis is not initialized. Please call 'init_redis' first.")
 
         try:
             ttl_key = "bloom_ttl:%s" % item_id
@@ -187,7 +202,7 @@ class Deduplicator:
 
     async def add_to_bloom(self, item_id: str, ttl_seconds: int = 3600) -> None:
         if not self.redis:
-            raise RuntimeError("Redis not initialized")
+            raise RuntimeError("Redis is not initialized. Please call 'init_redis' first.")
 
         try:
             ttl_key = "bloom_ttl:%s" % item_id
@@ -220,16 +235,6 @@ class Deduplicator:
 
     async def close(self):
         await self._close_connection()
-
-
-@asynccontextmanager
-async def get_deduplicator():
-    deduplicator = Deduplicator()
-    await deduplicator.init_redis()
-    try:
-        yield deduplicator
-    finally:
-        await deduplicator.close()
 
 
 deduplicator = Deduplicator()

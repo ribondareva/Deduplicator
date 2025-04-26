@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.11-slim
 
 # Устанавливаем зависимости ОС
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -23,7 +23,7 @@ COPY init-cluster.sh start-consumer.sh wait_for_kafka.sh ./
 
 # Устанавливаем зависимости через Poetry
 RUN poetry config virtualenvs.create false \
- && poetry install --no-root --no-interaction --no-ansi
+ && poetry install --no-root --no-interaction --no-ansi --with dev
 
 # Копируем всё остальное
 COPY . .
