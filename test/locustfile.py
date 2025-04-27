@@ -1,6 +1,4 @@
-import time
-
-from locust import HttpUser, task, between
+from locust import HttpUser, task
 import uuid
 import random
 from datetime import datetime, timedelta, UTC
@@ -45,19 +43,19 @@ class TestUser(HttpUser):
     @task
     def send_event(self):
         payload = self.generate_event_json()
-        start_time = time.time()  # Засекаем время начала запроса
         try:
             with self.client.post("/event", json=payload, catch_response=True) as response:
-                total_time = (time.time() - start_time) * 1000  # Время в миллисекундах
+                elapsed_ms = response.elapsed.total_seconds() * 1000  # Время в миллисекундах
                 if response.status_code == 200:
                     response.success()
+                    logger.info("Request to /event succeeded. Time taken: %.2f ms", elapsed_ms)
                 elif response.status_code == 400:
                     if "not unique" in response.text or "Missing product_id" in response.text:
                         response.success()
+                        logger.info("Request to /event expected 400. Time taken: %.2f ms", elapsed_ms)
                     else:
                         response.failure("Unexpected 400: %s" % response.text)
                 else:
                     response.failure("%s: %s" % (response.status_code, response.text))
         except Exception as e:
-            total_time = (time.time() - start_time) * 1000
-            logger.error("Request to /event failed with exception: %s. Time taken: %.2fms" % (str(e), total_time))
+            logger.error("Request to /event failed with exception: %s", str(e))
