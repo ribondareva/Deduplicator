@@ -27,7 +27,7 @@ test_json_template = {
 
 
 class TestUser(HttpUser):
-    # wait_time = between(0.001, 0.003)  # Слишком большое время ожидания
+    # wait_time = between(0.001, 0.003)  # Время ожидания
     wait_time = lambda self: 0  # Без паузы между запросами
 
     def generate_event_json(self):
