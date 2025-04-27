@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import time
 
 from aiokafka import AIOKafkaConsumer
 from app.api.schemas import EventSchema
@@ -87,10 +88,14 @@ async def consume_messages(consumer: AIOKafkaConsumer):
     """Основной цикл обработки сообщений из Kafka."""
     async for msg in consumer:
         logger.info("Received message: %s", msg.value)
+        start_time = time.monotonic()
         try:
             await process_event(msg.value)
         except Exception as e:
             logger.error("Error processing message: %s", e)
+        end_time = time.monotonic()
+        elapsed_ms = (end_time - start_time) * 1000
+        logger.info("Processed message in %.2f ms", elapsed_ms)
 
 
 async def main():
