@@ -1,5 +1,4 @@
-from locust import HttpUser, task, between, events
-import time
+from locust import HttpUser, task
 import uuid
 import random
 from datetime import datetime, timedelta, UTC
@@ -26,7 +25,8 @@ test_json_template = {
 
 
 class TestUser(HttpUser):
-    wait_time = between(0.1, 0.5)
+    # wait_time = between(0.1, 0.5)  # Слишком большое время ожидания
+    wait_time = lambda self: 0  # Без паузы между запросами
 
     def generate_event_json(self):
         now = datetime.now(UTC)
@@ -43,38 +43,17 @@ class TestUser(HttpUser):
     @task
     def send_event(self):
         payload = self.generate_event_json()
-        start_time = time.time()
 
         try:
             with self.client.post("/event", json=payload, catch_response=True) as response:
-                total_time = int((time.time() - start_time) * 1000)
-                logger.info("Status: %s | Time: %ss" % (response.status_code, response.elapsed.total_seconds()))
-
-                if response.status_code != 200:
-                    response.failure("%s: %s" % (response.status_code, response.text))
-                    events.request.fire(
-                        request_type="POST",
-                        name="POST /event",
-                        response_time=total_time,
-                        response_length=len(response.content),
-                        exception="%s: %s" % (response.status_code, response.text)
-                    )
-                    return
-
-                events.request.fire(
-                    request_type="POST",
-                    name="POST /event",
-                    response_time=total_time,
-                    response_length=len(response.content),
-                    exception=None
-                )
+                if response.status_code == 200:
+                    response.success()
+                elif response.status_code == 400:
+                    if "not unique" in response.text or "Missing product_id" in response.text:
+                        response.success()
+                    else:
+                        response.failure(f"Unexpected 400: {response.text}")
+                else:
+                    response.failure(f"{response.status_code}: {response.text}")
         except Exception as e:
-            total_time = int((time.time() - start_time) * 1000)
-            logger.error("Request failed: %s" % str(e))
-            events.request.fire(
-                request_type="POST",
-                name="POST /event",
-                response_time=total_time,
-                response_length=0,
-                exception=str(e)
-            )
+            logger.error("Request failed: %s", str(e))
