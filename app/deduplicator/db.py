@@ -55,8 +55,8 @@ class Database:
             database=settings.DB_NAME,
             host=settings.DB_HOST,
             port=settings.DB_PORT,
-            min_size=10,
-            max_size=50,
+            min_size=50,
+            max_size=300,
         )
 
     async def close_db(self):

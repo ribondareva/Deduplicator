@@ -369,6 +369,7 @@ services:
       - "${DB_PORT}:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
+    command: ["postgres", "-c", "max_connections=500", "-c", "shared_buffers=256MB"]
     networks:
       - dedup_net
     healthcheck:
@@ -547,4 +548,5 @@ networks:
     driver: bridge
   redis-cluster:
     driver: bridge
+
 

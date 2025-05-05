@@ -1,4 +1,7 @@
-from locust import HttpUser, task
+import time
+
+import httpx
+from locust import FastHttpUser, task, between
 import uuid
 import random
 from datetime import datetime, timedelta, UTC
@@ -24,9 +27,9 @@ test_json_template = {
 }
 
 
-class TestUser(HttpUser):
+class TestUser(FastHttpUser):
     # wait_time = between(0.001, 0.003)  # Время ожидания
-    wait_time = lambda self: 0  # Без паузы между запросами
+    wait_time = lambda self: 0  # без задержек между запросами
 
     def generate_event_json(self):
         now = datetime.now(UTC)
@@ -43,19 +46,59 @@ class TestUser(HttpUser):
     @task
     def send_event(self):
         payload = self.generate_event_json()
+        start_time = time.time()
+
         try:
-            with self.client.post("/event", json=payload, catch_response=True) as response:
-                elapsed_ms = response.elapsed.total_seconds() * 1000  # Время в миллисекундах
-                if response.status_code == 200:
-                    response.success()
-                    logger.info("Request to /event succeeded. Time taken: %.2f ms", elapsed_ms)
-                elif response.status_code == 400:
-                    if "not unique" in response.text or "Missing product_id" in response.text:
-                        response.success()
-                        logger.info("Request to /event expected 400. Time taken: %.2f ms", elapsed_ms)
-                    else:
-                        response.failure("Unexpected 400: %s" % response.text)
+            response = self.client.post("/event", json=payload)
+            elapsed_ms = (time.time() - start_time) * 1000
+
+            if response.status_code == 200:
+                self.environment.events.request.fire(
+                    request_type="POST",
+                    name="/event",
+                    response_time=elapsed_ms,
+                    response_length=len(response.content),
+                    exception=None
+                )
+                logger.info("Request to /event succeeded. Time taken: %.2f ms", elapsed_ms)
+
+            elif response.status_code == 400:
+                if "not unique" in response.text or "Missing product_id" in response.text:
+                    self.environment.events.request.fire(
+                        request_type="POST",
+                        name="/event",
+                        response_time=elapsed_ms,
+                        response_length=len(response.content),
+                        exception=None
+                    )
+                    logger.info("Request to /event expected 400. Time taken: %.2f ms", elapsed_ms)
                 else:
-                    response.failure("%s: %s" % (response.status_code, response.text))
+                    self.environment.events.request.fire(
+                        request_type="POST",
+                        name="/event",
+                        response_time=elapsed_ms,
+                        response_length=len(response.content),
+                        exception=Exception(f"Unexpected 400: {response.text}")
+                    )
+                    logger.warning("Unexpected 400: %s", response.text)
+
+            else:
+                self.environment.events.request.fire(
+                    request_type="POST",
+                    name="/event",
+                    response_time=elapsed_ms,
+                    response_length=len(response.content),
+                    exception=Exception(f"{response.status_code}: {response.text}")
+                )
+                logger.warning("Unexpected status %s: %s", response.status_code, response.text)
+
         except Exception as e:
+            elapsed_ms = (time.time() - start_time) * 1000
+            self.environment.events.request.fire(
+                request_type="POST",
+                name="/event",
+                response_time=elapsed_ms,
+                response_length=0,
+                exception=e
+            )
             logger.error("Request to /event failed with exception: %s", str(e))
